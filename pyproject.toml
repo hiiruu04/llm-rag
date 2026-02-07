@@ -1,0 +1,47 @@
+[project]
+name = "llm-rag"
+version = "0.1.0"
+description = "LLM-RAG implementation using Qdrant, FastAPI, and OpenAI"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.128.2",
+    "llama-index>=0.10.0",
+    "llama-index-vector-stores-qdrant>=0.2.0",
+    "qdrant-client>=1.10.0",
+    "openai>=1.0.0",
+    "llama-index-llms-openai>=0.1.0",
+    "llama-index-embeddings-openai>=0.1.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.0.0",
+    "llama-index-readers-file>=0.1.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.9",
+    "loguru>=0.7.0",
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.13",
+    "docx2txt>=0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+]
+
+[tool.ruff]
+line-length = 99
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+fixable = ["ALL"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

@@ -9,6 +9,7 @@ class LLMService:
         self.llm = LlamaOpenAI(
             model=settings.openai_llm_model,
             api_key=settings.openai_api_key,
+            api_base=settings.openai_base_url,
             temperature=settings.openai_temperature,
             max_tokens=settings.openai_max_tokens,
         )

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str
+    openai_base_url: str | None = None
     openai_embedding_model: str = "text-embedding-3-small"
     openai_llm_model: str = "gpt-4o"
     openai_temperature: float = 0.7
@@ -27,6 +28,37 @@ class Settings(BaseSettings):
 
     default_top_k: int = 5
     similarity_threshold: float = 0.7
+
+    postgres_user: str = "postgres"
+    postgres_password: str = "postgres"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_db: str = "llm_rag"
+
+    # Neo4j
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "password123"
+    neo4j_database: str = "neo4j"
+
+    # MCP Server
+    mcp_server_enabled: bool = True
+    mcp_api_key: str = ""
+
+    # MCP Client
+    mcp_client_enabled: bool = False
+    mcp_client_servers: str = "[]"  # JSON array of {name, url, api_key?}
+
+    @property
+    def database_url(self) -> str:
+        return (
+            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
+    def database_url_sync(self) -> str:
+        return self.database_url
 
 
 settings = Settings()

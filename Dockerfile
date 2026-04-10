@@ -28,6 +28,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy application files
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 COPY scripts ./scripts
 
 # Convert line endings and make executable

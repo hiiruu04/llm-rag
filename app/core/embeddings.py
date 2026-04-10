@@ -11,6 +11,7 @@ class EmbeddingService:
         self.model = OpenAIEmbedding(
             model=settings.openai_embedding_model,
             api_key=settings.openai_api_key,
+            api_base=settings.openai_base_url,
         )
 
     def get_text_embedding(self, text: str) -> List[float]:

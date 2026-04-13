@@ -23,7 +23,7 @@ export default function FaultsPage() {
 
   useEffect(() => {
     if (!assetsData?.data) return;
-    setLoading(true);
+    let cancelled = false;
     Promise.all(
       assetsData.data.map(async (asset) => {
         try {
@@ -34,9 +34,16 @@ export default function FaultsPage() {
         }
       }),
     )
-      .then((results) => setAllFaults(results.flat()))
-      .catch(() => setError("Failed to load faults"))
-      .finally(() => setLoading(false));
+      .then((results) => {
+        if (!cancelled) setAllFaults(results.flat());
+      })
+      .catch(() => {
+        if (!cancelled) setError("Failed to load faults");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [assetsData]);
 
   const filtered = allFaults.filter((f) => {

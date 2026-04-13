@@ -7,8 +7,42 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.core.config import settings
 from app.core.database import Base
-from app.models import Asset, Fault, GraphSyncLog, MaintenanceSchedule, Sensor, SensorData  # noqa: F401
-from app.models.fault import fault_cause_effect  # noqa: F401
+from app.models import (  # noqa: F401
+    Action,
+    Aggregate,
+    Asset,
+    Cause,
+    Competence,
+    DownEvent,
+    Fault,
+    GraphSyncLog,
+    Level,
+    Location,
+    MaintenanceSchedule,
+    Material,
+    Order,
+    Role,
+    Sensor,
+    SensorData,
+    Shift,
+    System,
+    Task,
+    Worker,
+    action_competence,
+    asset_location,
+    asset_system,
+    asset_worker_assignment,
+    cause_role,
+    down_event_cause,
+    fault_cause_effect,
+    order_asset,
+    role_task,
+    system_aggregate,
+    task_competence,
+    task_material,
+    worker_competence,
+    worker_shift,
+)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url_sync)

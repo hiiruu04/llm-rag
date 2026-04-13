@@ -206,5 +206,232 @@ def search(entities: dict) -> tuple[str, dict]:
     )
 
 
+@register("worker_competences")
+def worker_competences(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("worker_names"):
+        params["name"] = entities["worker_names"][0]
+        return (
+            "MATCH (w:Worker) WHERE w.name CONTAINS $name "
+            "OPTIONAL MATCH (w)-[:has]->(c:Competence) "
+            "OPTIONAL MATCH (c)-[:typeOf]->(l:Level) "
+            "RETURN w.name AS worker, c.name AS competence, "
+            "c.category AS category, l.name AS level, l.rank AS rank",
+            params,
+        )
+    return (
+        "MATCH (w:Worker)-[:has]->(c:Competence)-[:typeOf]->(l:Level) "
+        "RETURN w.name AS worker, c.name AS competence, "
+        "c.category AS category, l.name AS level, l.rank AS rank "
+        "LIMIT 50",
+        params,
+    )
+
+
+@register("equipment_workers")
+def equipment_workers(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("asset_names"):
+        params["name"] = entities["asset_names"][0]
+        return (
+            "MATCH (a:Asset)-[:assigned_to]->(w:Worker) "
+            "WHERE a.name CONTAINS $name "
+            "OPTIONAL MATCH (w)-[:works_in]->(s:Shift) "
+            "RETURN a.name AS asset, w.name AS worker, "
+            "w.employee_id AS employee_id, w.status AS worker_status, "
+            "s.name AS shift, s.start_time AS shift_start, s.end_time AS shift_end",
+            params,
+        )
+    return (
+        "MATCH (a:Asset)-[:assigned_to]->(w:Worker) "
+        "OPTIONAL MATCH (w)-[:works_in]->(s:Shift) "
+        "RETURN a.name AS asset, w.name AS worker, "
+        "w.employee_id AS employee_id, w.status AS worker_status, "
+        "s.name AS shift LIMIT 50",
+        params,
+    )
+
+
+@register("task_requirements")
+def task_requirements(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("task_names"):
+        params["name"] = entities["task_names"][0]
+        return (
+            "MATCH (t:Task) WHERE t.name CONTAINS $name "
+            "OPTIONAL MATCH (t)-[:requires]->(c:Competence) "
+            "OPTIONAL MATCH (r:Role)-[:enables]->(t) "
+            "OPTIONAL MATCH (m:Material)-[:planned_in]->(t) "
+            "RETURN t.name AS task, t.task_type AS type, t.status AS status, "
+            "collect(DISTINCT c.name) AS competences, "
+            "collect(DISTINCT r.name) AS roles, "
+            "collect(DISTINCT m.name) AS materials",
+            params,
+        )
+    return (
+        "MATCH (t:Task) "
+        "OPTIONAL MATCH (t)-[:requires]->(c:Competence) "
+        "OPTIONAL MATCH (r:Role)-[:enables]->(t) "
+        "RETURN t.name AS task, t.task_type AS type, t.status AS status, "
+        "collect(DISTINCT c.name) AS competences, "
+        "collect(DISTINCT r.name) AS roles LIMIT 50",
+        params,
+    )
+
+
+@register("down_event_analysis")
+def down_event_analysis(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("asset_names"):
+        params["name"] = entities["asset_names"][0]
+        return (
+            "MATCH (a:Asset) WHERE a.name CONTAINS $name "
+            "OPTIONAL MATCH (de:DownEvent) WHERE de.asset_id = a.pg_id "
+            "OPTIONAL MATCH (de)-[:has]->(c:Cause)-[:requires]->(r:Role) "
+            "RETURN a.name AS asset, de.started_at AS started, "
+            "de.downtime_minutes AS downtime, c.name AS cause, "
+            "c.severity AS severity, r.name AS required_role "
+            "ORDER BY de.started_at DESC LIMIT 20",
+            params,
+        )
+    return (
+        "MATCH (de:DownEvent)-[:has]->(c:Cause)-[:requires]->(r:Role) "
+        "RETURN de.started_at AS started, de.downtime_minutes AS downtime, "
+        "de.severity AS severity, c.name AS cause, r.name AS required_role "
+        "ORDER BY de.started_at DESC LIMIT 50",
+        params,
+    )
+
+
+@register("equipment_hierarchy")
+def equipment_hierarchy(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("asset_names"):
+        params["name"] = entities["asset_names"][0]
+        return (
+            "MATCH (a:Asset) WHERE a.name CONTAINS $name "
+            "OPTIONAL MATCH (a)-[:consists_of]->(s:System) "
+            "OPTIONAL MATCH (s)-[:part_of]->(ag:Aggregate) "
+            "OPTIONAL MATCH (a)-[:is_at]->(l:Location) "
+            "RETURN a.name AS asset, a.status AS status, "
+            "collect(DISTINCT s.name) AS systems, "
+            "collect(DISTINCT ag.name) AS aggregates, "
+            "collect(DISTINCT l.name) AS locations",
+            params,
+        )
+    return (
+        "MATCH (a:Asset) "
+        "OPTIONAL MATCH (a)-[:consists_of]->(s:System)-[:part_of]->(ag:Aggregate) "
+        "OPTIONAL MATCH (a)-[:is_at]->(l:Location) "
+        "RETURN a.name AS asset, a.status AS status, "
+        "collect(DISTINCT s.name) AS systems, "
+        "collect(DISTINCT l.name) AS locations "
+        "LIMIT 50",
+        params,
+    )
+
+
+@register("worker_availability")
+def worker_availability(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("competence_names"):
+        params["comp"] = entities["competence_names"][0]
+        return (
+            "MATCH (w:Worker)-[:has]->(c:Competence) "
+            "WHERE c.name CONTAINS $comp AND w.status = 'active' "
+            "OPTIONAL MATCH (w)-[:works_in]->(s:Shift) "
+            "RETURN w.name AS worker, w.employee_id AS employee_id, "
+            "c.name AS competence, s.name AS shift "
+            "ORDER BY w.name",
+            params,
+        )
+    return (
+        "MATCH (w:Worker {status: 'active'})-[:has]->(c:Competence) "
+        "OPTIONAL MATCH (w)-[:works_in]->(s:Shift) "
+        "RETURN w.name AS worker, w.employee_id AS employee_id, "
+        "collect(DISTINCT c.name) AS competences, s.name AS shift "
+        "ORDER BY w.name LIMIT 50",
+        params,
+    )
+
+
+@register("cause_analysis")
+def cause_analysis(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("cause_names"):
+        params["name"] = entities["cause_names"][0]
+        return (
+            "MATCH (c:Cause) WHERE c.name CONTAINS $name "
+            "OPTIONAL MATCH (c)-[:requires]->(r:Role)-[:enables]->(t:Task) "
+            "RETURN c.name AS cause, c.category AS category, c.severity AS severity, "
+            "collect(DISTINCT r.name) AS required_roles, "
+            "collect(DISTINCT t.name) AS enabled_tasks",
+            params,
+        )
+    return (
+        "MATCH (c:Cause) "
+        "OPTIONAL MATCH (c)-[:requires]->(r:Role)-[:enables]->(t:Task) "
+        "RETURN c.name AS cause, c.category AS category, c.severity AS severity, "
+        "collect(DISTINCT r.name) AS required_roles, "
+        "collect(DISTINCT t.name) AS enabled_tasks LIMIT 50",
+        params,
+    )
+
+
+@register("order_tracking")
+def order_tracking(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("order_numbers"):
+        params["num"] = entities["order_numbers"][0]
+        return (
+            "MATCH (o:Order) WHERE o.order_number CONTAINS $num "
+            "OPTIONAL MATCH (o)-[:booked_on]->(a:Asset) "
+            "RETURN o.order_number AS order_num, o.title AS title, "
+            "o.status AS status, o.priority AS priority, "
+            "o.order_type AS type, collect(DISTINCT a.name) AS assets",
+            params,
+        )
+    conditions = []
+    if entities.get("order_statuses"):
+        params["status"] = entities["order_statuses"][0]
+        conditions.append("o.status = $status")
+    where = ""
+    if conditions:
+        where = "WHERE " + " AND ".join(conditions) + " "
+    return (
+        f"MATCH (o:Order) {where}"
+        "OPTIONAL MATCH (o)-[:booked_on]->(a:Asset) "
+        "RETURN o.order_number AS order_num, o.title AS title, "
+        "o.status AS status, o.priority AS priority, "
+        "collect(DISTINCT a.name) AS assets "
+        "ORDER BY o.priority DESC LIMIT 50",
+        params,
+    )
+
+
+@register("material_planning")
+def material_planning(entities: dict) -> tuple[str, dict]:
+    params = {}
+    if entities.get("material_names"):
+        params["name"] = entities["material_names"][0]
+        return (
+            "MATCH (m:Material) WHERE m.name CONTAINS $name "
+            "OPTIONAL MATCH (m)-[:planned_in]->(t:Task) "
+            "RETURN m.name AS material, m.part_number AS part_number, "
+            "m.quantity_in_stock AS in_stock, m.unit AS unit, "
+            "collect(DISTINCT t.name) AS planned_tasks",
+            params,
+        )
+    return (
+        "MATCH (m:Material) "
+        "OPTIONAL MATCH (m)-[:planned_in]->(t:Task) "
+        "RETURN m.name AS material, m.part_number AS part_number, "
+        "m.quantity_in_stock AS in_stock, m.unit AS unit, "
+        "collect(DISTINCT t.name) AS planned_tasks "
+        "LIMIT 50",
+        params,
+    )
+
+
 def get_template(query_type: str) -> Optional[callable]:
     return TEMPLATES.get(query_type)

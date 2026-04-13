@@ -90,15 +90,15 @@ export default function QueryPage() {
             )}
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-lg px-4 py-3 text-sm ${
+                <div className={`max-w-[80%] min-w-0 overflow-hidden rounded-lg px-4 py-3 text-sm ${
                   msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                 }`}>
                   {msg.role === "assistant" ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="prose prose-sm dark:prose-invert max-w-none overflow-hidden [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-all [&_pre]:rounded [&_pre]:bg-background [&_pre]:p-2 [&_pre]:text-xs [&_pre]:font-mono [&_code]:text-xs [&_code]:rounded [&_code]:bg-background [&_code]:px-1 [&_code]:py-0.5 [&_table]:text-xs [&_a]:text-primary [&_a]:underline">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (
-                    msg.content
+                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                   )}
                   {msg.data && (
                     <div className="mt-3 space-y-2 border-t border-border/50 pt-2">
@@ -114,9 +114,9 @@ export default function QueryPage() {
                         </p>
                       )}
                       {msg.data.cypher_used && (
-                        <details className="text-xs">
+                        <details className="overflow-hidden text-xs">
                           <summary className="cursor-pointer text-primary">Cypher Query</summary>
-                          <pre className="mt-1 overflow-x-auto rounded bg-background p-2 font-mono">{msg.data.cypher_used}</pre>
+                          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-background p-2 font-mono">{msg.data.cypher_used}</pre>
                         </details>
                       )}
                       {msg.data.sources && msg.data.sources.length > 0 && (

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -201,5 +201,401 @@ class MaintenanceScheduleResponse(BaseModel):
     recurrence: str
     estimated_duration_hours: Optional[float]
     notes: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- New Entity Literal Enums ---
+
+WorkerStatus = Literal["active", "inactive", "on_leave"]
+TaskStatus = Literal["pending", "in_progress", "completed", "cancelled"]
+TaskType = Literal["general", "inspection", "repair", "installation", "calibration"]
+CauseSeverity = Literal["low", "medium", "high", "critical"]
+DownEventStatus = Literal["active", "resolved"]
+OrderStatus = Literal["open", "in_progress", "completed", "cancelled"]
+OrderPriority = Literal["low", "medium", "high", "critical"]
+OrderType = Literal["maintenance", "repair", "inspection", "installation"]
+
+
+# --- Worker Schemas ---
+
+
+class WorkerCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    employee_id: str = Field(..., min_length=1, max_length=50)
+    email: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
+    status: WorkerStatus = "active"
+
+
+class WorkerUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    employee_id: Optional[str] = Field(None, min_length=1, max_length=50)
+    email: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
+    status: Optional[WorkerStatus] = None
+
+
+class WorkerResponse(BaseModel):
+    id: UUID
+    name: str
+    employee_id: str
+    email: Optional[str]
+    phone: Optional[str]
+    status: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Role Schemas ---
+
+
+class RoleCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class RoleUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class RoleResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Competence Schemas ---
+
+
+class CompetenceCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    category: Optional[str] = Field(None, max_length=100)
+
+
+class CompetenceUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    category: Optional[str] = Field(None, max_length=100)
+
+
+class CompetenceResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    category: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Level Schemas ---
+
+
+class LevelCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    rank: int = 0
+    description: Optional[str] = None
+
+
+class LevelUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    rank: Optional[int] = None
+    description: Optional[str] = None
+
+
+class LevelResponse(BaseModel):
+    id: UUID
+    name: str
+    rank: int
+    description: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Task Schemas ---
+
+
+class TaskCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    task_type: TaskType = "general"
+    status: TaskStatus = "pending"
+    estimated_duration_hours: Optional[float] = None
+    doc_link: Optional[str] = Field(None, max_length=500)
+
+
+class TaskUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    task_type: Optional[TaskType] = None
+    status: Optional[TaskStatus] = None
+    estimated_duration_hours: Optional[float] = None
+    doc_link: Optional[str] = Field(None, max_length=500)
+
+
+class TaskResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    task_type: str
+    status: str
+    estimated_duration_hours: Optional[float]
+    doc_link: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Action Schemas ---
+
+
+class ActionCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    action_type: str = Field("standard", max_length=100)
+    sequence_order: int = 0
+
+
+class ActionUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    action_type: Optional[str] = Field(None, max_length=100)
+    sequence_order: Optional[int] = None
+
+
+class ActionResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    action_type: str
+    sequence_order: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Cause Schemas ---
+
+
+class CauseCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    category: Optional[str] = Field(None, max_length=100)
+    severity: CauseSeverity = "medium"
+
+
+class CauseUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    category: Optional[str] = Field(None, max_length=100)
+    severity: Optional[CauseSeverity] = None
+
+
+class CauseResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    category: Optional[str]
+    severity: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Material Schemas ---
+
+
+class MaterialCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    part_number: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    quantity_in_stock: float = 0.0
+    unit: Optional[str] = Field(None, max_length=50)
+
+
+class MaterialUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    part_number: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    quantity_in_stock: Optional[float] = None
+    unit: Optional[str] = Field(None, max_length=50)
+
+
+class MaterialResponse(BaseModel):
+    id: UUID
+    name: str
+    part_number: Optional[str]
+    description: Optional[str]
+    quantity_in_stock: float
+    unit: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Shift Schemas ---
+
+
+class ShiftCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    start_time: time
+    end_time: time
+    description: Optional[str] = None
+
+
+class ShiftUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    description: Optional[str] = None
+
+
+class ShiftResponse(BaseModel):
+    id: UUID
+    name: str
+    start_time: time
+    end_time: time
+    description: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- DownEvent Schemas ---
+
+
+class DownEventCreate(BaseModel):
+    asset_id: UUID
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    downtime_minutes: int = 0
+    description: Optional[str] = None
+    severity: CauseSeverity = "medium"
+    status: DownEventStatus = "active"
+
+
+class DownEventUpdate(BaseModel):
+    asset_id: Optional[UUID] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    downtime_minutes: Optional[int] = None
+    description: Optional[str] = None
+    severity: Optional[CauseSeverity] = None
+    status: Optional[DownEventStatus] = None
+
+
+class DownEventResponse(BaseModel):
+    id: UUID
+    asset_id: UUID
+    started_at: Optional[datetime]
+    ended_at: Optional[datetime]
+    downtime_minutes: int
+    description: Optional[str]
+    severity: str
+    status: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Order Schemas ---
+
+
+class OrderCreate(BaseModel):
+    order_number: str = Field(..., min_length=1, max_length=100)
+    title: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    order_type: OrderType = "maintenance"
+    status: OrderStatus = "open"
+    priority: OrderPriority = "medium"
+    requested_date: Optional[datetime] = None
+
+
+class OrderUpdate(BaseModel):
+    order_number: Optional[str] = Field(None, min_length=1, max_length=100)
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    order_type: Optional[OrderType] = None
+    status: Optional[OrderStatus] = None
+    priority: Optional[OrderPriority] = None
+    requested_date: Optional[datetime] = None
+
+
+class OrderResponse(BaseModel):
+    id: UUID
+    order_number: str
+    title: str
+    description: Optional[str]
+    order_type: str
+    status: str
+    priority: str
+    requested_date: Optional[datetime]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Location Schemas ---
+
+
+class LocationCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    location_type: Optional[str] = Field(None, max_length=100)
+    parent_id: Optional[UUID] = None
+
+
+class LocationUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    location_type: Optional[str] = Field(None, max_length=100)
+    parent_id: Optional[UUID] = None
+
+
+class LocationResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    location_type: Optional[str]
+    parent_id: Optional[UUID]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- System Schemas ---
+
+
+class SystemCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class SystemUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class SystemResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Aggregate Schemas ---
+
+
+class AggregateCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class AggregateUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class AggregateResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

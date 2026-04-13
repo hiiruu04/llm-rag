@@ -21,7 +21,15 @@ from loguru import logger
 from sqlalchemy import func, select, text
 
 from app.core.database import async_session_factory, engine
-from app.models import Asset, Fault, MaintenanceSchedule, Sensor, SensorData, fault_cause_effect
+from app.models import (
+    Action, Aggregate, Asset, Cause, Competence, DownEvent, Fault,
+    Level, Location, Material, Order, Role, Shift, System, Task, Worker,
+    Sensor, SensorData, MaintenanceSchedule,
+    action_competence, asset_location, asset_system, asset_worker_assignment,
+    cause_role, down_event_cause, fault_cause_effect,
+    order_asset, role_task, system_aggregate,
+    task_competence, task_material, worker_competence, worker_shift,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -115,12 +123,42 @@ async def clean_db(session: AsyncSession) -> None:
     """Delete all seeded data, respecting FK order."""
     logger.info("Cleaning existing data...")
     for table in [
+        # Junction tables first (reverse dependency order)
+        "action_competence",
+        "task_competence",
+        "task_material",
+        "cause_role",
+        "role_task",
+        "down_event_cause",
+        "order_asset",
+        "asset_worker_assignment",
+        "asset_location",
+        "asset_system",
+        "system_aggregate",
+        "worker_competence",
+        "worker_shift",
+        # Original tables
         "sensor_data",
         "maintenance_schedules",
         "fault_cause_effect",
         "faults",
         "sensors",
         "assets",
+        # New entity tables
+        "down_events",
+        "orders",
+        "actions",
+        "materials",
+        "causes",
+        "tasks",
+        "workers",
+        "shifts",
+        "competences",
+        "levels",
+        "roles",
+        "systems",
+        "aggregates",
+        "locations",
     ]:
         await session.execute(text(f'DELETE FROM "{table}"'))
     await session.commit()
@@ -461,6 +499,415 @@ async def seed_maintenance_schedules(
     logger.info(f"Created {len(schedules)} maintenance schedules.")
 
 
+async def seed_levels(session: AsyncSession) -> dict[str, Level]:
+    count = await session.scalar(func.count(Level.id))
+    if count and count > 0:
+        return {l.name: l for l in (await session.scalars(select(Level))).all()}
+    levels = {}
+    for name, rank, desc in [
+        ("Beginner", 1, "Basic knowledge"), ("Intermediate", 2, "Solid working knowledge"),
+        ("Advanced", 3, "Expert-level"), ("Expert", 4, "Master-level, can train others"),
+    ]:
+        level = Level(name=name, rank=rank, description=desc)
+        session.add(level)
+        levels[name] = level
+    await session.commit()
+    logger.info(f"Created {len(levels)} levels.")
+    return levels
+
+
+async def seed_competences(session: AsyncSession) -> dict[str, Competence]:
+    count = await session.scalar(func.count(Competence.id))
+    if count and count > 0:
+        return {c.name: c for c in (await session.scalars(select(Competence))).all()}
+    competences = {}
+    for name, desc, cat in [
+        ("Boiler Operation", "Operate boiler systems", "Operations"),
+        ("Pump Maintenance", "Maintain industrial pumps", "Mechanical"),
+        ("Electrical Systems", "High/low voltage systems", "Electrical"),
+        ("Vibration Analysis", "Vibration pattern analysis", "Diagnostics"),
+        ("Welding", "Structural and pipe welding", "Fabrication"),
+        ("PLC Programming", "PLC troubleshooting", "Automation"),
+        ("Thermal Imaging", "Thermal camera inspection", "Diagnostics"),
+        ("Pipe Fitting", "Industrial piping", "Mechanical"),
+        ("Safety Procedures", "Safety protocols", "Safety"),
+        ("Turbine Operation", "Steam turbine ops", "Operations"),
+    ]:
+        c = Competence(name=name, description=desc, category=cat)
+        session.add(c)
+        competences[name] = c
+    await session.commit()
+    logger.info(f"Created {len(competences)} competences.")
+    return competences
+
+
+async def seed_roles(session: AsyncSession) -> dict[str, Role]:
+    count = await session.scalar(func.count(Role.id))
+    if count and count > 0:
+        return {r.name: r for r in (await session.scalars(select(Role))).all()}
+    roles = {}
+    for name, desc in [
+        ("Senior Mechanic", "Leads mechanical repair"),
+        ("Electrician", "Electrical systems"),
+        ("Boiler Operator", "Boiler operation"),
+        ("Turbine Engineer", "Turbine specialist"),
+        ("Shift Supervisor", "Shift coordination"),
+        ("Safety Officer", "Safety compliance"),
+        ("Maintenance Planner", "Maintenance planning"),
+        ("Instrument Technician", "Instrument calibration"),
+    ]:
+        r = Role(name=name, description=desc)
+        session.add(r)
+        roles[name] = r
+    await session.commit()
+    logger.info(f"Created {len(roles)} roles.")
+    return roles
+
+
+async def seed_shifts(session: AsyncSession) -> dict[str, Shift]:
+    from datetime import time
+    count = await session.scalar(func.count(Shift.id))
+    if count and count > 0:
+        return {s.name: s for s in (await session.scalars(select(Shift))).all()}
+    shifts = {}
+    for name, start, end, desc in [
+        ("Morning Shift", time(6, 0), time(14, 0), "06:00 - 14:00"),
+        ("Afternoon Shift", time(14, 0), time(22, 0), "14:00 - 22:00"),
+        ("Night Shift", time(22, 0), time(6, 0), "22:00 - 06:00"),
+    ]:
+        s = Shift(name=name, start_time=start, end_time=end, description=desc)
+        session.add(s)
+        shifts[name] = s
+    await session.commit()
+    logger.info(f"Created {len(shifts)} shifts.")
+    return shifts
+
+
+async def seed_locations(session: AsyncSession) -> dict[str, Location]:
+    count = await session.scalar(func.count(Location.id))
+    if count and count > 0:
+        return {l.name: l for l in (await session.scalars(select(Location))).all()}
+    plant = Location(name="Main Plant", description="Main plant", location_type="plant")
+    session.add(plant)
+    await session.flush()
+    building_a = Location(name="Building A", description="Boiler house", location_type="building", parent_id=plant.id)
+    building_b = Location(name="Building B", description="Turbine hall", location_type="building", parent_id=plant.id)
+    session.add_all([building_a, building_b])
+    await session.flush()
+    boiler_room = Location(name="Boiler Room A", description="Boiler area", location_type="room", parent_id=building_a.id)
+    turbine_hall = Location(name="Turbine Hall B", description="Turbine floor", location_type="room", parent_id=building_b.id)
+    control_room = Location(name="Control Room", description="Central control", location_type="room", parent_id=building_b.id)
+    session.add_all([boiler_room, turbine_hall, control_room])
+    locs = {"Main Plant": plant, "Building A": building_a, "Building B": building_b,
+            "Boiler Room A": boiler_room, "Turbine Hall B": turbine_hall, "Control Room": control_room}
+    await session.commit()
+    logger.info(f"Created {len(locs)} locations.")
+    return locs
+
+
+async def seed_aggregates(session: AsyncSession) -> dict[str, Aggregate]:
+    count = await session.scalar(func.count(Aggregate.id))
+    if count and count > 0:
+        return {a.name: a for a in (await session.scalars(select(Aggregate))).all()}
+    aggs = {}
+    for name, desc in [
+        ("Steam Generation Line", "Steam gen line"), ("Power Generation Unit", "Turbine-gen set"),
+        ("Cooling Circuit", "Cooling water circuit"),
+    ]:
+        a = Aggregate(name=name, description=desc)
+        session.add(a)
+        aggs[name] = a
+    await session.commit()
+    logger.info(f"Created {len(aggs)} aggregates.")
+    return aggs
+
+
+async def seed_systems(session: AsyncSession) -> dict[str, System]:
+    count = await session.scalar(func.count(System.id))
+    if count and count > 0:
+        return {s.name: s for s in (await session.scalars(select(System))).all()}
+    systems = {}
+    for name, desc in [
+        ("Feed Water System", "Feed water supply"), ("Combustion System", "Fuel delivery"),
+        ("Steam System", "Steam piping"), ("Turbine System", "Turbine and governor"),
+        ("Generator System", "Generator and excitation"), ("Cooling Water System", "Cooling pumps"),
+        ("Lubrication System", "Bearing lubrication"),
+    ]:
+        s = System(name=name, description=desc)
+        session.add(s)
+        systems[name] = s
+    await session.commit()
+    logger.info(f"Created {len(systems)} systems.")
+    return systems
+
+
+async def seed_workers(session, competences, levels, shifts):
+    count = await session.scalar(func.count(Worker.id))
+    if count and count > 0:
+        return {w.name: w for w in (await session.scalars(select(Worker))).all()}
+    workers = {}
+    for name, eid, email, st in [
+        ("John Smith", "EMP-001", "john.smith@plant.com", "active"),
+        ("Maria Garcia", "EMP-002", "maria.garcia@plant.com", "active"),
+        ("Robert Chen", "EMP-003", "robert.chen@plant.com", "active"),
+        ("Sarah Johnson", "EMP-004", "sarah.johnson@plant.com", "active"),
+        ("Ahmed Hassan", "EMP-005", "ahmed.hassan@plant.com", "active"),
+        ("Lisa Wong", "EMP-006", "lisa.wong@plant.com", "on_leave"),
+        ("James Brown", "EMP-007", "james.brown@plant.com", "active"),
+    ]:
+        w = Worker(name=name, employee_id=eid, email=email, status=st)
+        session.add(w)
+        workers[name] = w
+    await session.flush()
+    # Assign competences
+    comp_map = [
+        ("John Smith", [("Boiler Operation", "Advanced"), ("Safety Procedures", "Expert")]),
+        ("Maria Garcia", [("Electrical Systems", "Advanced"), ("PLC Programming", "Intermediate")]),
+        ("Robert Chen", [("Vibration Analysis", "Expert"), ("Turbine Operation", "Advanced")]),
+        ("Sarah Johnson", [("Pump Maintenance", "Advanced"), ("Welding", "Intermediate")]),
+        ("Ahmed Hassan", [("Thermal Imaging", "Advanced"), ("Electrical Systems", "Intermediate")]),
+        ("Lisa Wong", [("Safety Procedures", "Advanced")]),
+        ("James Brown", [("Pipe Fitting", "Expert"), ("Welding", "Advanced")]),
+    ]
+    for wname, comps in comp_map:
+        for cname, lname in comps:
+            await session.execute(worker_competence.insert().values(
+                worker_id=workers[wname].id, competence_id=competences[cname].id,
+                level_id=levels.get(lname, {}).id if lname in levels else None,
+            ))
+    # Assign shifts
+    for wname, sname in [("John Smith", "Morning Shift"), ("Maria Garcia", "Morning Shift"),
+                          ("Robert Chen", "Afternoon Shift"), ("Sarah Johnson", "Afternoon Shift"),
+                          ("Ahmed Hassan", "Night Shift"), ("James Brown", "Morning Shift")]:
+        await session.execute(worker_shift.insert().values(
+            worker_id=workers[wname].id, shift_id=shifts[sname].id))
+    await session.commit()
+    logger.info(f"Created {len(workers)} workers.")
+    return workers
+
+
+async def seed_tasks(session):
+    count = await session.scalar(func.count(Task.id))
+    if count and count > 0:
+        return {t.name: t for t in (await session.scalars(select(Task))).all()}
+    tasks = {}
+    for name, desc, ttype, st, hrs, doc in [
+        ("Bearing Replacement", "Replace turbine bearings", "repair", "pending", 24.0, "/docs/bearing-replace.pdf"),
+        ("Safety Valve Testing", "Test safety valves", "inspection", "pending", 4.0, None),
+        ("Boiler Tube Inspection", "Internal tube inspection", "inspection", "completed", 8.0, "/docs/tube-inspect.pdf"),
+        ("Pump Seal Replacement", "Replace pump seals", "repair", "in_progress", 6.0, None),
+        ("Combustion Tuning", "Optimize combustion", "calibration", "pending", 3.0, None),
+        ("Generator Winding Test", "Winding insulation test", "inspection", "pending", 6.0, None),
+        ("Turbine Alignment", "Turbine-generator alignment", "calibration", "pending", 12.0, None),
+    ]:
+        t = Task(name=name, description=desc, task_type=ttype, status=st,
+                 estimated_duration_hours=hrs, doc_link=doc)
+        session.add(t)
+        tasks[name] = t
+    await session.commit()
+    logger.info(f"Created {len(tasks)} tasks.")
+    return tasks
+
+
+async def seed_actions(session):
+    count = await session.scalar(func.count(Action.id))
+    if count and count > 0:
+        return {a.name: a for a in (await session.scalars(select(Action))).all()}
+    actions = {}
+    for name, desc, atype, seq in [
+        ("Isolate Equipment", "Lock out equipment", "safety", 1),
+        ("Drain System", "Drain fluids", "preparation", 2),
+        ("Remove Guards", "Remove guards", "preparation", 3),
+        ("Inspect Components", "Visual inspection", "inspection", 4),
+        ("Replace Parts", "Install new parts", "repair", 5),
+        ("Reassemble", "Reassemble", "repair", 6),
+        ("Test Run", "Verify operation", "verification", 7),
+        ("Document Results", "Record findings", "documentation", 8),
+    ]:
+        a = Action(name=name, description=desc, action_type=atype, sequence_order=seq)
+        session.add(a)
+        actions[name] = a
+    await session.commit()
+    logger.info(f"Created {len(actions)} actions.")
+    return actions
+
+
+async def seed_causes(session):
+    count = await session.scalar(func.count(Cause.id))
+    if count and count > 0:
+        return {c.name: c for c in (await session.scalars(select(Cause))).all()}
+    causes = {}
+    for name, desc, cat, sev in [
+        ("Bearing Wear", "Prolonged operation wear", "mechanical", "medium"),
+        ("Corrosion", "Chemical corrosion", "chemical", "high"),
+        ("Thermal Fatigue", "Thermal cycling cracks", "thermal", "high"),
+        ("Improper Lubrication", "Wrong lubricant", "operational", "medium"),
+        ("Vibration Damage", "Excessive vibration", "mechanical", "critical"),
+        ("Electrical Fault", "Insulation failure", "electrical", "critical"),
+        ("Seal Degradation", "Material degradation", "mechanical", "low"),
+        ("Foreign Object Damage", "Debris in system", "operational", "medium"),
+    ]:
+        c = Cause(name=name, description=desc, category=cat, severity=sev)
+        session.add(c)
+        causes[name] = c
+    await session.commit()
+    logger.info(f"Created {len(causes)} causes.")
+    return causes
+
+
+async def seed_materials(session):
+    count = await session.scalar(func.count(Material.id))
+    if count and count > 0:
+        return {m.name: m for m in (await session.scalars(select(Material))).all()}
+    materials = {}
+    for name, pn, desc, qty, unit in [
+        ("Bearing 6205-2RS", "SKF-6205", "Ball bearing", 12, "pcs"),
+        ("Mechanical Seal DN40", "CRN-DN40", "Seal for DN40", 4, "pcs"),
+        ("Boiler Tube SA213-T12", "BT-T12-50", "Boiler tube 50mm", 20, "m"),
+        ("Gasket Material 3mm", "GLD-003", "Fiber gasket sheet", 5, "m2"),
+        ("Turbine Oil ISO 46", "TO-46-200", "Lubricating oil", 3, "barrel"),
+        ("Safety Valve Spring", "SVS-150", "Valve spring", 6, "pcs"),
+        ("Welding Electrode E7018", "WE-7018", "Welding electrode", 50, "kg"),
+        ("Coolant Concentrate", "CC-EG-25", "Ethylene glycol", 10, "L"),
+    ]:
+        m = Material(name=name, part_number=pn, description=desc, quantity_in_stock=qty, unit=unit)
+        session.add(m)
+        materials[name] = m
+    await session.commit()
+    logger.info(f"Created {len(materials)} materials.")
+    return materials
+
+
+async def seed_down_events(session, assets, causes):
+    count = await session.scalar(func.count(DownEvent.id))
+    if count and count > 0:
+        return {}
+    now = datetime.now(timezone.utc)
+    events = {}
+    for desc, aname, dur, sev, st, cnames in [
+        ("Boiler emergency shutdown", "Boiler Unit 01", 180, "high", "resolved", ["Thermal Fatigue", "Corrosion"]),
+        ("Turbine vibration trip", "Steam Turbine 01", 360, "critical", "active", ["Vibration Damage", "Bearing Wear"]),
+        ("Pump seal failure", "Feed Water Pump", 90, "medium", "resolved", ["Seal Degradation"]),
+        ("Generator overheat", "Generator", 240, "high", "active", ["Thermal Fatigue", "Electrical Fault"]),
+        ("Cooling system leak", "Cooling System", 60, "low", "resolved", ["Corrosion"]),
+    ]:
+        started = now - timedelta(hours=random.randint(48, 240))
+        ended = started + timedelta(minutes=dur) if st == "resolved" else None
+        e = DownEvent(asset_id=assets[aname].id, started_at=started, ended_at=ended,
+                      downtime_minutes=dur, description=desc, severity=sev, status=st)
+        session.add(e)
+        events[desc] = e
+    await session.flush()
+    for desc, _, _, _, _, cnames in [("Boiler emergency shutdown", None, 0, None, None, ["Thermal Fatigue", "Corrosion"]),
+        ("Turbine vibration trip", None, 0, None, None, ["Vibration Damage", "Bearing Wear"]),
+        ("Pump seal failure", None, 0, None, None, ["Seal Degradation"]),
+        ("Generator overheat", None, 0, None, None, ["Thermal Fatigue", "Electrical Fault"]),
+        ("Cooling system leak", None, 0, None, None, ["Corrosion"])]:
+        for cn in cnames:
+            await session.execute(down_event_cause.insert().values(
+                down_event_id=events[desc].id, cause_id=causes[cn].id))
+    await session.commit()
+    logger.info(f"Created {len(events)} down events.")
+    return events
+
+
+async def seed_orders(session, assets):
+    count = await session.scalar(func.count(Order.id))
+    if count and count > 0:
+        return {}
+    now = datetime.now(timezone.utc)
+    orders = {}
+    links = {"WO-2025-001": ["Boiler Unit 01"], "WO-2025-002": ["Steam Turbine 01"],
+             "WO-2025-003": ["Boiler Unit 01"], "WO-2025-004": ["Feed Water Pump"],
+             "WO-2025-005": ["Generator"], "WO-2025-006": ["Cooling System"]}
+    for num, title, desc, otype, st, pri in [
+        ("WO-2025-001", "Boiler Tube Repair", "Emergency tube repair", "repair", "in_progress", "critical"),
+        ("WO-2025-002", "Turbine Bearing Inspection", "Bearing inspection", "inspection", "open", "high"),
+        ("WO-2025-003", "Annual Boiler Inspection", "Scheduled inspection", "maintenance", "open", "medium"),
+        ("WO-2025-004", "Pump Seal Replacement", "Seal replacement", "repair", "completed", "medium"),
+        ("WO-2025-005", "Generator Thermography", "Thermographic survey", "inspection", "open", "low"),
+        ("WO-2025-006", "Cooling System Flush", "Quarterly flush", "maintenance", "open", "low"),
+    ]:
+        o = Order(order_number=num, title=title, description=desc, order_type=otype,
+                  status=st, priority=pri, requested_date=now + timedelta(days=random.randint(0, 14)))
+        session.add(o)
+        orders[num] = o
+    await session.flush()
+    for num, anames in links.items():
+        for aname in anames:
+            await session.execute(order_asset.insert().values(
+                order_id=orders[num].id, asset_id=assets[aname].id))
+    await session.commit()
+    logger.info(f"Created {len(orders)} orders.")
+    return orders
+
+
+async def seed_associations(session, assets, workers, systems, aggregates, locations,
+                              competences, tasks, materials, causes, roles, actions):
+    # Asset <-> Worker
+    for aname, wname in [("Boiler Unit 01", "John Smith"), ("Boiler Unit 01", "Sarah Johnson"),
+                          ("Steam Turbine 01", "Robert Chen"), ("Steam Turbine 01", "Ahmed Hassan"),
+                          ("Generator", "Maria Garcia"), ("Feed Water Pump", "Sarah Johnson"),
+                          ("Feed Water Pump", "James Brown"), ("Cooling System", "James Brown")]:
+        await session.execute(asset_worker_assignment.insert().values(
+            asset_id=assets[aname].id, worker_id=workers[wname].id))
+    # Asset <-> System
+    for aname, snames in [("Boiler Unit 01", ["Feed Water System", "Combustion System", "Steam System"]),
+                           ("Steam Turbine 01", ["Steam System", "Turbine System", "Lubrication System"]),
+                           ("Generator", ["Generator System", "Cooling Water System"]),
+                           ("Feed Water Pump", ["Feed Water System"]),
+                           ("Cooling System", ["Cooling Water System"])]:
+        for sn in snames:
+            await session.execute(asset_system.insert().values(
+                asset_id=assets[aname].id, system_id=systems[sn].id))
+    # System <-> Aggregate
+    for sn, agg in [("Feed Water System", "Steam Generation Line"), ("Combustion System", "Steam Generation Line"),
+                     ("Steam System", "Steam Generation Line"), ("Turbine System", "Power Generation Unit"),
+                     ("Generator System", "Power Generation Unit"), ("Cooling Water System", "Cooling Circuit")]:
+        await session.execute(system_aggregate.insert().values(
+            system_id=systems[sn].id, aggregate_id=aggregates[agg].id))
+    # Asset <-> Location
+    for aname, loc in [("Boiler Unit 01", "Boiler Room A"), ("Feed Water Pump", "Boiler Room A"),
+                        ("Steam Turbine 01", "Turbine Hall B"), ("Generator", "Turbine Hall B"),
+                        ("Cooling System", "Turbine Hall B")]:
+        await session.execute(asset_location.insert().values(
+            asset_id=assets[aname].id, location_id=locations[loc].id))
+    # Cause <-> Role
+    for cn, rn in [("Bearing Wear", "Senior Mechanic"), ("Corrosion", "Maintenance Planner"),
+                    ("Thermal Fatigue", "Senior Mechanic"), ("Vibration Damage", "Turbine Engineer"),
+                    ("Electrical Fault", "Electrician"), ("Seal Degradation", "Senior Mechanic"),
+                    ("Foreign Object Damage", "Shift Supervisor")]:
+        await session.execute(cause_role.insert().values(
+            cause_id=causes[cn].id, role_id=roles[rn].id))
+    # Role <-> Task
+    for rn, tn in [("Senior Mechanic", "Bearing Replacement"), ("Senior Mechanic", "Pump Seal Replacement"),
+                    ("Instrument Technician", "Safety Valve Testing"), ("Senior Mechanic", "Boiler Tube Inspection"),
+                    ("Electrician", "Generator Winding Test"), ("Turbine Engineer", "Turbine Alignment")]:
+        await session.execute(role_task.insert().values(
+            role_id=roles[rn].id, task_id=tasks[tn].id))
+    # Task <-> Competence
+    for tn, cn in [("Bearing Replacement", "Vibration Analysis"), ("Bearing Replacement", "Turbine Operation"),
+                    ("Safety Valve Testing", "Boiler Operation"), ("Pump Seal Replacement", "Pump Maintenance"),
+                    ("Combustion Tuning", "Boiler Operation"), ("Generator Winding Test", "Electrical Systems"),
+                    ("Turbine Alignment", "Turbine Operation")]:
+        await session.execute(task_competence.insert().values(
+            task_id=tasks[tn].id, competence_id=competences[cn].id))
+    # Task <-> Material
+    for tn, mn, qty in [("Bearing Replacement", "Bearing 6205-2RS", 2),
+                         ("Pump Seal Replacement", "Mechanical Seal DN40", 1),
+                         ("Boiler Tube Inspection", "Boiler Tube SA213-T12", 2),
+                         ("Safety Valve Testing", "Safety Valve Spring", 1)]:
+        await session.execute(task_material.insert().values(
+            task_id=tasks[tn].id, material_id=materials[mn].id, quantity_required=qty))
+    # Action <-> Competence
+    for an, cn in [("Inspect Components", "Vibration Analysis"), ("Inspect Components", "Thermal Imaging"),
+                    ("Replace Parts", "Welding"), ("Replace Parts", "Pipe Fitting")]:
+        await session.execute(action_competence.insert().values(
+            action_id=actions[an].id, competence_id=competences[cn].id))
+    await session.commit()
+    logger.info("Created all association links.")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -472,12 +919,27 @@ async def run(clean: bool = False) -> None:
     async with async_session_factory() as session:
         if clean:
             await clean_db(session)
-
         assets = await seed_assets(session)
         sensors = await seed_sensors(session, assets)
         faults = await seed_faults(session, assets)
+        levels = await seed_levels(session)
+        competences = await seed_competences(session)
+        roles = await seed_roles(session)
+        shifts = await seed_shifts(session)
+        locations = await seed_locations(session)
+        aggregates = await seed_aggregates(session)
+        systems = await seed_systems(session)
+        workers = await seed_workers(session, competences, levels, shifts)
+        tasks = await seed_tasks(session)
+        actions = await seed_actions(session)
+        causes = await seed_causes(session)
+        materials = await seed_materials(session)
+        down_events = await seed_down_events(session, assets, causes)
+        orders = await seed_orders(session, assets)
         await seed_sensor_data(session, sensors)
         await seed_maintenance_schedules(session, assets, faults)
+        await seed_associations(session, assets, workers, systems, aggregates, locations,
+                                competences, tasks, materials, causes, roles, actions)
 
     await engine.dispose()
     logger.info("Seeding complete.")

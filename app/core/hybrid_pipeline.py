@@ -33,7 +33,9 @@ Answer:"""
 
 class HybridPipeline:
     def __init__(self):
-        self.llm_client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+        self.llm_client = OpenAI(
+            api_key=settings.openai_api_key, base_url=settings.openai_base_url
+        )
         self.model = settings.openai_llm_model
 
     async def query(self, question: str) -> dict:

@@ -5,15 +5,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.api.routes import (
+    actions,
+    aggregates,
     assets,
+    causes,
+    competences,
     documents,
+    down_events,
     faults,
     graph_admin,
     health,
+    levels,
+    locations,
     maintenance_schedules,
+    materials,
+    orders,
     query,
+    roles,
     sensor_data,
     sensors,
+    shifts,
+    systems,
+    tasks,
+    workers,
 )
 from app.core.config import settings
 from app.core.database import engine
@@ -53,6 +67,20 @@ app.include_router(sensor_data.router)
 app.include_router(faults.router)
 app.include_router(maintenance_schedules.router)
 app.include_router(graph_admin.router)
+app.include_router(workers.router)
+app.include_router(roles.router)
+app.include_router(competences.router)
+app.include_router(levels.router)
+app.include_router(tasks.router)
+app.include_router(actions.router)
+app.include_router(causes.router)
+app.include_router(materials.router)
+app.include_router(shifts.router)
+app.include_router(down_events.router)
+app.include_router(orders.router)
+app.include_router(locations.router)
+app.include_router(systems.router)
+app.include_router(aggregates.router)
 
 # Mount MCP server
 if settings.mcp_server_enabled:

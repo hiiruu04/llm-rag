@@ -31,6 +31,32 @@ detected_at, resolved_at, created_at, updated_at
 maintenance_type, status, priority, scheduled_date, completed_date, \
 assigned_to, recurrence, estimated_duration_hours, notes, \
 created_at, updated_at
+- Worker: pg_id, name, employee_id, email, phone, status, \
+created_at, updated_at
+- Role: pg_id, name, description, created_at, updated_at
+- Competence: pg_id, name, description, category, \
+created_at, updated_at
+- Level: pg_id, name, rank, description, created_at, updated_at
+- Task: pg_id, name, description, task_type, status, \
+estimated_duration_hours, doc_link, created_at, updated_at
+- Action: pg_id, name, description, action_type, \
+sequence_order, created_at, updated_at
+- Cause: pg_id, name, description, category, severity, \
+created_at, updated_at
+- Material: pg_id, name, part_number, description, \
+quantity_in_stock, unit, created_at, updated_at
+- Shift: pg_id, name, start_time, end_time, description, \
+created_at, updated_at
+- DownEvent: pg_id, asset_id, started_at, ended_at, \
+downtime_minutes, description, severity, status, \
+created_at, updated_at
+- Order: pg_id, order_number, title, description, \
+order_type, status, priority, requested_date, \
+created_at, updated_at
+- Location: pg_id, name, description, location_type, \
+parent_id, created_at, updated_at
+- System: pg_id, name, description, created_at, updated_at
+- Aggregate: pg_id, name, description, created_at, updated_at
 
 Relationships:
 - (Asset)-[:HAS_PARENT]->(Asset)
@@ -40,6 +66,20 @@ Relationships:
 - (Fault)-[:CAUSES]->(Fault)
 - (Asset)-[:HAS_MAINTENANCE]->(MaintenanceSchedule)
 - (MaintenanceSchedule)-[:ADDRESSES_FAULT]->(Fault)
+- (Asset)-[:assigned_to]->(Worker)
+- (Worker)-[:has]->(Competence)
+- (Worker)-[:works_in]->(Shift)
+- (Competence)-[:typeOf]->(Level)
+- (Task)-[:requires]->(Competence)
+- (Cause)-[:requires]->(Role)
+- (Action)-[:requires]->(Competence)
+- (Asset)-[:consists_of]->(System)
+- (System)-[:part_of]->(Aggregate)
+- (Role)-[:enables]->(Task)
+- (Asset)-[:is_at]->(Location)
+- (Order)-[:booked_on]->(Asset)
+- (Material)-[:planned_in]->(Task)
+- (DownEvent)-[:has]->(Cause)
 """
 
 CYPHER_GEN_PROMPT = """You are a Cypher query generator for a Neo4j CMMS knowledge graph.

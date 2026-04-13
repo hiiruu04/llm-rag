@@ -10,6 +10,20 @@ import {
   Heart,
   ChevronLeft,
   ChevronRight,
+  Users,
+  Shield,
+  Award,
+  Layers,
+  ListChecks,
+  Zap,
+  Bug,
+  Package,
+  Clock,
+  AlertOctagon,
+  ClipboardList,
+  MapPin,
+  Cpu,
+  BoxSelect,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/sidebar-store";
@@ -27,7 +41,36 @@ const navSections = [
     items: [
       { to: "/faults", icon: AlertTriangle, label: "Faults" },
       { to: "/maintenance", icon: Wrench, label: "Maintenance" },
+      { to: "/orders", icon: ClipboardList, label: "Orders" },
+      { to: "/down-events", icon: AlertOctagon, label: "Down Events" },
       { to: "/documents", icon: FileText, label: "Documents" },
+    ],
+  },
+  {
+    label: "Resources",
+    items: [
+      { to: "/workers", icon: Users, label: "Workers" },
+      { to: "/roles", icon: Shield, label: "Roles" },
+      { to: "/competences", icon: Award, label: "Competences" },
+      { to: "/levels", icon: Layers, label: "Levels" },
+      { to: "/shifts", icon: Clock, label: "Shifts" },
+    ],
+  },
+  {
+    label: "Task Management",
+    items: [
+      { to: "/tasks", icon: ListChecks, label: "Tasks" },
+      { to: "/actions", icon: Zap, label: "Actions" },
+      { to: "/causes", icon: Bug, label: "Causes" },
+      { to: "/materials", icon: Package, label: "Materials" },
+    ],
+  },
+  {
+    label: "Infrastructure",
+    items: [
+      { to: "/locations", icon: MapPin, label: "Locations" },
+      { to: "/systems", icon: Cpu, label: "Systems" },
+      { to: "/aggregates", icon: BoxSelect, label: "Aggregates" },
     ],
   },
   {

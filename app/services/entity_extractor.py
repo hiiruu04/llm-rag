@@ -18,14 +18,26 @@ Return a JSON object with these fields (use null for any not found):
   "sensor_types": ["temperature"] or null,
   "maintenance_types": ["preventive"] or null,
   "maintenance_statuses": ["overdue"] or null,
+  "worker_names": ["John Smith"] or null,
+  "role_names": ["Mechanic"] or null,
+  "competence_names": ["Welding"] or null,
+  "task_names": ["Bearing Replacement"] or null,
+  "cause_names": ["Wear"] or null,
+  "material_names": ["Bearing 6205"] or null,
+  "shift_names": ["Morning"] or null,
+  "order_numbers": ["WO-001"] or null,
+  "order_statuses": ["open"] or null,
+  "location_names": ["Building A"] or null,
   "time_range": {{
     "start": "ISO date or null",
     "end": "ISO date or null",
     "relative": "last 7 days or null"
   }} or null,
-  "locations": ["Building A"] or null,
   "query_type": "asset_tree | fault_chain | sensor_status | "
-    "maintenance_schedule | relationship | statistics | search"
+    "maintenance_schedule | relationship | statistics | search | "
+    "worker_competences | equipment_workers | task_requirements | "
+    "down_event_analysis | equipment_hierarchy | worker_availability | "
+    "cause_analysis | order_tracking | material_planning"
 }}
 
 Query types:
@@ -36,6 +48,15 @@ Query types:
 - relationship: asking about connections between entities
 - statistics: asking for counts, aggregations, summaries
 - search: general search for entities
+- worker_competences: asking about worker skills and proficiency levels
+- equipment_workers: asking about workers assigned to equipment/assets
+- task_requirements: asking about task competences, materials, roles
+- down_event_analysis: asking about downtime events, causes, resolutions
+- equipment_hierarchy: asking about equipment systems, aggregates, locations
+- worker_availability: looking for workers with specific competences
+- cause_analysis: asking about root causes and resolution paths
+- order_tracking: asking about work orders and their status
+- material_planning: asking about materials, stock levels, planned usage
 
 Respond with ONLY the JSON object.
 

@@ -42,7 +42,7 @@ export function useUpdateSensor() {
 export function useDeleteSensor() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, assetId: _assetId }: { id: string; assetId: string }) =>
+    mutationFn: ({ id }: { id: string; assetId: string }) =>
       apiClient.delete(`/api/v1/sensors/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sensors"] }),
   });

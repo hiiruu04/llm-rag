@@ -1,6 +1,6 @@
-# LLM-RAG: Retrieval-Augmented Generation with Qdrant
+# LLM-RAG: Retrieval-Augmented Generation with Qdrant & Neo4j
 
-A Python-based RAG system that ingests documents, performs semantic search using Qdrant vector database, and generates answers using OpenAI's LLMs.
+A Python-based RAG system that ingests documents, performs semantic search using Qdrant vector database, enriches queries with a knowledge graph in Neo4j, and generates answers using OpenAI's LLMs.
 
 ## Features
 
@@ -8,6 +8,8 @@ A Python-based RAG system that ingests documents, performs semantic search using
 - **OCR Support**: Extract text from scanned PDFs using Tesseract
 - **Dynamic Chunking**: Adaptive text segmentation based on document length
 - **Semantic Search**: Vector similarity search with Qdrant
+- **Knowledge Graph**: Neo4j-powered graph for CMMS entity relationships
+- **GraphRAG Pipeline**: Vector search enriched with graph context and CMMS references
 - **Intelligent Q&A**: Context-aware responses using OpenAI GPT models
 - **Docker Support**: Containerized deployment with Docker Compose
 - **FastAPI**: High-performance async API with automatic docs
@@ -15,15 +17,34 @@ A Python-based RAG system that ingests documents, performs semantic search using
 ## Architecture
 
 ```
-User Query -> FastAPI -> Embedding Generation -> Qdrant Search -> Context Retrieval -> LLM Generation -> Answer
-                |
-Document Upload -> Text Extraction -> Dynamic Chunking -> Embedding Generation -> Qdrant Storage
+INGESTION:
+  Document -> Text Extraction -> Chunks
+    -> Embedding -> Store in Qdrant (vector search)
+    -> LLM Entity/Rel Extraction -> Store in Neo4j (knowledge graph)
+    -> Link extracted entities to CMMS nodes
+
+RETRIEVAL:
+  Query -> Embed -> Semantic Search (Qdrant) -> Extract Chunk IDs
+    -> Query Neo4j graph around those IDs -> Graph Context
+    -> Graph Context + Doc Passages + Query -> LLM -> Answer
 ```
+
+### Query Modes
+
+| Mode | Description |
+|------|-------------|
+| `vector` | Traditional RAG: Qdrant semantic search only |
+| `graph` | Knowledge graph queries via Cypher generation |
+| `graphrag` | **Vector + Graph**: Semantic search enriched with graph context and CMMS references |
+| `hybrid` | Parallel vector + graph search with synthesized answer |
+| `auto` | Intent classification selects the best mode automatically |
 
 ## Tech Stack
 
 - **Framework**: FastAPI
 - **Vector Database**: Qdrant
+- **Graph Database**: Neo4j
+- **Relational Database**: PostgreSQL
 - **Embeddings**: OpenAI `text-embedding-3-small` / `text-embedding-3-large`
 - **LLM**: OpenAI `gpt-4o-mini`
 - **Document Processing**: LlamaIndex, pypdf, pytesseract, pdf2image
@@ -44,6 +65,17 @@ Document Upload -> Text Extraction -> Dynamic Chunking -> Embedding Generation -
 | `CHUNK_SIZE` | Max chunk size for long docs | `512` |
 | `CHUNK_OVERLAP` | Overlap between chunks | `50` |
 | `SIMILARITY_THRESHOLD` | Minimum similarity score | `0.2` |
+| `NEO4J_URI` | Neo4j bolt URI | `bolt://localhost:7687` |
+| `NEO4J_USER` | Neo4j username | `neo4j` |
+| `NEO4J_PASSWORD` | Neo4j password | `password123` |
+
+### GraphRAG Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GRAPHRAG_ENABLED` | Enable GraphRAG pipeline | `true` |
+| `GRAPHRAG_MAX_ENTITIES_PER_CHUNK` | Max entities to extract per chunk | `20` |
+| `GRAPHRAG_NEIGHBORHOOD_HOPS` | Graph traversal depth for context | `2` |
 
 ### Switching to Large Embedding Model
 
@@ -65,30 +97,42 @@ uv run python app/utils/qdrant_setup.py reset
 llm-rag/
 ├── app/
 │   ├── api/                 # FastAPI endpoints
-│   │   └── v1/
-│   │       ├── __init__.py
-│   │       └── router.py
+│   │   ├── models.py        # Response models
+│   │   └── routes/          # API route handlers
+│   │       ├── documents.py # Document ingestion/deletion
+│   │       ├── query.py     # Query endpoints (vector, graph, graphrag, hybrid)
+│   │       └── ...          # CMMS CRUD routes
 │   ├── core/                # Core business logic
-│   │   ├── config.py
-│   │   ├── embeddings.py
-│   │   ├── llm.py
-│   │   └── vector_store.py
+│   │   ├── config.py        # Settings management
+│   │   ├── embeddings.py    # OpenAI embeddings
+│   │   ├── graphrag_pipeline.py  # GraphRAG retrieval pipeline
+│   │   ├── graph_rag_pipeline.py # Cypher-based graph pipeline
+│   │   ├── hybrid_pipeline.py    # Combined vector + graph
+│   │   ├── llm.py           # LLM service
+│   │   ├── neo4j.py         # Neo4j driver
+│   │   ├── rag_pipeline.py  # Vector-only RAG
+│   │   └── vector_store.py  # Qdrant operations
+│   ├── services/            # Service layer
+│   │   ├── document_entity_extractor.py  # LLM entity extraction
+│   │   ├── entity_linking_service.py     # Link entities to CMMS nodes
+│   │   ├── graph_ingestion_service.py    # Graph data ingestion
+│   │   ├── intent_classifier.py          # Query intent classification
+│   │   └── ...
+│   ├── models/              # SQLAlchemy data models
 │   ├── modules/             # Feature modules
 │   │   └── document_processor.py
 │   ├── utils/               # Utilities
-│   │   ├── logger.py
-│   │   └── qdrant_setup.py
+│   │   ├── neo4j_setup.py   # Neo4j schema setup
+│   │   ├── qdrant_setup.py  # Qdrant collection setup
+│   │   └── logger.py
 │   └── main.py              # FastAPI app entry
-├── scripts/                 # Shell scripts
-│   ├── init_qdrant.sh
-│   └── docker_init_qdrant.sh
-├── logs/                    # Application logs
-├── .env                     # Environment configuration
-├── docker-compose.yml       # Docker orchestration
-├── Dockerfile               # Container definition
-├── Makefile                 # Convenience commands (Linux/macOS)
-├── pyproject.toml           # Python dependencies
-└── README.md                # This file
+├── scripts/
+├── logs/
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
+├── pyproject.toml
+└── README.md
 ```
 
 ## Prerequisites
@@ -140,13 +184,11 @@ cp .env.example .env
 nano .env
 ```
 
-#### 4. Start Qdrant
+#### 4. Start Infrastructure
 
 ```bash
-docker run -d --name qdrant \
-  -p 6333:6333 -p 6334:6334 \
-  -v $(pwd)/qdrant_data:/qdrant/storage \
-  qdrant/qdrant:latest
+# Start Qdrant, PostgreSQL, and Neo4j
+docker-compose up -d qdrant postgres neo4j
 ```
 
 #### 5. Initialize Qdrant Collection
@@ -182,6 +224,8 @@ docker-compose up -d
 
 This will start:
 - **Qdrant** on `http://localhost:6333`
+- **PostgreSQL** on `localhost:5432`
+- **Neo4j** on `bolt://localhost:7687` (browser: `http://localhost:7474`)
 - **FastAPI App** on `http://localhost:8000`
 
 #### 3. View Logs
@@ -227,80 +271,116 @@ make rebuild
 curl http://localhost:8000/api/v1/health
 ```
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "qdrant_connected": true,
-  "collection_info": {
-    "name": "documents",
-    "vector_size": 1536,
-    "vectors_count": 10
-  }
-}
-```
-
 #### 2. Ingest Document
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/documents \
   -F "file=@path/to/document.pdf" \
-  -F "metadata={\"author\":\"John Doe\"}"
+  -F "enable_graph=true"
 ```
 
 **Response:**
 ```json
 {
-  "document_id": "uuid-here",
-  "filename": "document.pdf",
-  "chunks_created": 5,
-  "message": "Document ingested successfully"
+  "data": {
+    "document_id": "uuid-here",
+    "filename": "document.pdf",
+    "chunks_processed": 5,
+    "embedding_model": "text-embedding-3-small",
+    "processing_time_ms": 1234,
+    "graph_ingestion_triggered": true
+  },
+  "meta": {"status_code": 201, "details": "Document ingested successfully"}
 }
 ```
 
-#### 3. Query the System
+Graph ingestion runs as a background task. Entities and relationships are extracted via LLM and stored in Neo4j, then linked to existing CMMS nodes.
+
+#### 3. Query with GraphRAG
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/query \
+curl -X POST http://localhost:8000/api/v1/query/graphrag \
   -H "Content-Type: application/json" \
   -d '{
-    "question": "What is the deadline for this project?"
+    "question": "What equipment is mentioned in the maintenance manual and what faults are associated with it?"
   }'
 ```
 
 **Response:**
 ```json
 {
-  "answer": "Based on the document, you are expected to complete the challenge within 3 days.",
-  "sources": [
-    {
-      "document_id": "uuid-here",
-      "filename": "quiz.pdf",
-      "chunk_index": 5,
-      "similarity_score": 0.75,
-      "preview_text": "Timeline: You are expected to complete the challenge within 3 days..."
-    }
-  ],
-  "model_used": "gpt-4o-mini",
-  "tokens_used": 150
+  "data": {
+    "answer": "Based on the maintenance manual...",
+    "sources": [
+      {
+        "document_id": "uuid",
+        "filename": "maintenance_manual.pdf",
+        "chunk_index": 3,
+        "similarity_score": 0.82,
+        "preview_text": "The hydraulic pump requires..."
+      }
+    ],
+    "graph_entities": [
+      {"name": "Hydraulic Pump", "entity_type": "Equipment", "description": "Main hydraulic pump unit"},
+      {"name": "Pressure Loss", "entity_type": "FailureMode", "description": "Loss of system pressure"}
+    ],
+    "cmms_references": [
+      {"entity_name": "Hydraulic Pump", "cmms_label": "Asset", "cmms_name": "HP-2000", "cmms_pg_id": 42}
+    ],
+    "mode_used": "graphrag"
+  },
+  "meta": {"status_code": 200, "details": "GraphRAG query processed successfully"}
 }
 ```
 
-#### 4. List Documents
+#### 4. Query with Auto Mode
+
+```bash
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What is the maintenance schedule for pump HP-2000?",
+    "mode": "auto"
+  }'
+```
+
+The `mode` parameter accepts: `auto`, `vector`, `graph`, `graphrag`, `hybrid`.
+
+#### 5. List Documents
 
 ```bash
 curl http://localhost:8000/api/v1/documents
 ```
 
-#### 5. Delete Document
+#### 6. Delete Document
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/documents/{document_id}
 ```
 
+This removes the document from both Qdrant and Neo4j (DocumentChunk nodes, DocEntity nodes, and all relationships).
+
 ### Interactive API Documentation
 
 Visit `http://localhost:8000/docs` for interactive Swagger UI documentation.
+
+## GraphRAG Neo4j Schema
+
+### Node Labels
+
+| Label | Key Properties | Purpose |
+|-------|---------------|---------|
+| `DocumentChunk` | `chunk_id`, `document_id`, `chunk_index`, `text`, `file_name` | Bridge between Qdrant vectors and Neo4j graph |
+| `DocEntity` | `entity_id`, `name`, `entity_type`, `description`, `source_document_id` | Entities extracted from documents |
+
+### Relationships
+
+| Type | From -> To | Description |
+|------|-----------|-------------|
+| `MENTIONED_IN` | DocEntity -> DocumentChunk | Entity found in this chunk |
+| `RELATED_TO` | DocEntity -> DocEntity | Extracted relationships between entities |
+| `NEXT_CHUNK` | DocumentChunk -> DocumentChunk | Sequential ordering within a document |
+| `REFERS_TO` | DocEntity -> Asset/Fault/Sensor/... | Links to existing CMMS entities |
 
 ## Troubleshooting
 
@@ -312,6 +392,16 @@ curl http://localhost:6333/
 
 # Check Qdrant logs
 docker logs llm-rag-qdrant
+```
+
+### Neo4j Connection Issues
+
+```bash
+# Check if Neo4j is running
+curl http://localhost:7474/
+
+# Check Neo4j logs
+docker logs llm-rag-neo4j
 ```
 
 ### OCR Not Working
@@ -360,4 +450,3 @@ uv run ruff check .
 ## License
 
 MIT
-

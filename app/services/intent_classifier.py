@@ -14,6 +14,9 @@ documentation, unstructured text
 sensors, relationships, hierarchies, statistics in the CMMS
 - "hybrid": Questions requiring BOTH document knowledge \
 AND structured CMMS data
+- "graphrag": Questions about entity relationships, equipment connections, \
+or cross-referencing documents with CMMS data (e.g., "What equipment is \
+mentioned in the manual and what faults are associated with it?")
 - "general": Questions not related to CMMS or documents
 
 Respond with ONLY the category name, nothing else.
@@ -36,7 +39,13 @@ class IntentClassifier:
                 temperature=0.0,
             )
             intent = response.choices[0].message.content.strip().strip('"').lower()
-            valid_intents = {"document_search", "structured_query", "hybrid", "general"}
+            valid_intents = {
+                "document_search",
+                "structured_query",
+                "hybrid",
+                "graphrag",
+                "general",
+            }
             if intent not in valid_intents:
                 logger.warning(f"Unknown intent '{intent}', defaulting to 'general'")
                 intent = "general"

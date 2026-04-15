@@ -1,29 +1,30 @@
 from typing import Optional
 
+from sqlalchemy import func, select
+
 from app.core.config import settings
+from app.core.database import async_session_factory
 from app.core.neo4j import get_neo4j_driver
 from app.mcp.server import mcp_server
+from app.models.sensor_data import SensorData
 
 
 @mcp_server.tool()
 async def get_sensor_status(
     asset_id: Optional[str] = None,
     sensor_id: Optional[str] = None,
-    window: str = "1h",
-    include_latest_reading: bool = True,
 ) -> str:
-    """Get sensor readings and aggregated summaries.
+    """Get sensor info and latest readings from the database.
 
     Args:
         asset_id: Filter by asset UUID
         sensor_id: Specific sensor UUID
-        window: Aggregation window (1h, 6h, 24h, 7d, 30d)
-        include_latest_reading: Include the most recent reading
     """
     driver = await get_neo4j_driver()
 
-    conditions = ["sum.window = $window"]
-    params = {"window": window}
+    # Build graph query for sensor + asset context
+    conditions = []
+    params: dict = {}
 
     if sensor_id:
         conditions.append("s.pg_id = $sensor_id")
@@ -32,17 +33,14 @@ async def get_sensor_status(
         conditions.append("a.pg_id = $asset_id")
         params["asset_id"] = asset_id
 
-    where = " AND ".join(conditions)
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
     cypher = (
-        f"MATCH (a:Asset)-[:HAS_SENSOR]->(s:Sensor)"
-        f"-[:HAS_SUMMARY]->(sum:SensorSummary) "
-        f"WHERE {where} "
-        f"RETURN a.name AS asset, s.name AS sensor, "
-        f"s.sensor_type AS type, s.unit AS unit, "
-        f"sum.window, sum.avg_value, sum.min_value, "
-        f"sum.max_value, sum.stddev, sum.sample_count, "
-        f"sum.anomaly_flag "
+        f"MATCH (a:Asset)-[:HAS_SENSOR]->(s:Sensor) "
+        f"{where} "
+        f"RETURN a.name AS asset, s.pg_id AS sensor_pg_id, "
+        f"s.name AS sensor, s.sensor_type AS type, "
+        f"s.unit AS unit, s.status AS status "
         f"ORDER BY a.name, s.name"
     )
 
@@ -51,16 +49,50 @@ async def get_sensor_status(
         records = await result.data()
 
     if not records:
-        return "No sensor summaries found for the given criteria."
+        return "No sensors found for the given criteria."
 
-    lines = [f"Sensor summaries (window: {window}):"]
+    # Fetch latest reading per sensor from PostgreSQL
+    sensor_pg_ids = [r["sensor_pg_id"] for r in records if r.get("sensor_pg_id")]
+    latest_readings: dict = {}
+
+    if sensor_pg_ids:
+        import uuid
+
+        pg_ids = [uuid.UUID(sid) for sid in sensor_pg_ids]
+        async with async_session_factory() as pg_session:
+            subq = (
+                select(
+                    SensorData.sensor_id,
+                    func.max(SensorData.timestamp).label("latest_ts"),
+                )
+                .where(SensorData.sensor_id.in_(pg_ids))
+                .group_by(SensorData.sensor_id)
+                .subquery()
+            )
+            stmt = select(SensorData).join(
+                subq,
+                (SensorData.sensor_id == subq.c.sensor_id)
+                & (SensorData.timestamp == subq.c.latest_ts),
+            )
+            result = await pg_session.execute(stmt)
+            for sd in result.scalars().all():
+                latest_readings[str(sd.sensor_id)] = {
+                    "value": sd.value,
+                    "timestamp": sd.timestamp.isoformat(),
+                }
+
+    lines = [f"Sensors ({len(records)} found):"]
     for r in records:
-        anomaly = " [ANOMALY]" if r.get("anomaly_flag") else ""
+        reading = latest_readings.get(r["sensor_pg_id"])
+        reading_str = (
+            f", latest: {reading['value']} at {reading['timestamp']}"
+            if reading
+            else ", no readings"
+        )
         lines.append(
-            f"- {r['asset']} / {r['sensor']} ({r['type']}, {r.get('unit', 'N/A')}){anomaly}\n"
-            f"  avg: {r['avg_value']:.2f}, min: {r['min_value']:.2f}, "
-            f"max: {r['max_value']:.2f}, stddev: {r['stddev']:.2f}, "
-            f"samples: {r['sample_count']}"
+            f"- {r['asset']} / {r['sensor']} "
+            f"({r['type']}, {r.get('unit', 'N/A')}, status: {r['status']})"
+            f"{reading_str}"
         )
 
     return "\n".join(lines)

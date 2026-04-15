@@ -10,6 +10,7 @@ def register(query_type: str):
     def decorator(fn):
         TEMPLATES[query_type] = fn
         return fn
+
     return decorator
 
 
@@ -43,11 +44,24 @@ def asset_tree(entities: dict) -> tuple[str, dict]:
 @register("fault_chain")
 def fault_chain(entities: dict) -> tuple[str, dict]:
     params = {}
-    if entities.get("fault_codes"):
-        params["code"] = entities["fault_codes"][0]
+    fault_name = (entities.get("fault_names") or [None])[0]
+    fault_code = (entities.get("fault_codes") or [None])[0]
+    if fault_code:
+        params["code"] = fault_code
         return (
-            "MATCH path = (root:Fault {code: $code})-[:CAUSES*1..5]->(downstream:Fault) "
-            "RETURN path, root, downstream",
+            "MATCH (root:Fault) "
+            "WHERE root.code CONTAINS $code OR root.name CONTAINS $code "
+            "OPTIONAL MATCH path = (root)-[:CAUSES*1..5]->(downstream:Fault) "
+            "RETURN root, path, downstream",
+            params,
+        )
+    if fault_name:
+        params["name"] = fault_name
+        return (
+            "MATCH (root:Fault) "
+            "WHERE root.name CONTAINS $name OR root.code CONTAINS $name "
+            "OPTIONAL MATCH path = (root)-[:CAUSES*1..5]->(downstream:Fault) "
+            "RETURN root, path, downstream",
             params,
         )
     if entities.get("fault_severities"):
@@ -59,7 +73,7 @@ def fault_chain(entities: dict) -> tuple[str, dict]:
             params,
         )
     return (
-        "MATCH (f:Fault) WHERE f.status IN ['open', 'investigating'] "
+        "MATCH (f:Fault) WHERE f.status IN ['open', 'investigating', 'in_progress'] "
         "OPTIONAL MATCH path = (f)-[:CAUSES*1..5]->(downstream:Fault) "
         "RETURN f, path, downstream LIMIT 50",
         params,
@@ -72,37 +86,29 @@ def sensor_status(entities: dict) -> tuple[str, dict]:
     if entities.get("asset_names"):
         params["name"] = entities["asset_names"][0]
         return (
-            "MATCH (a:Asset)-[:HAS_SENSOR]->(s:Sensor)"
-            "-[:HAS_SUMMARY]->(sum:SensorSummary) "
+            "MATCH (a:Asset)-[:HAS_SENSOR]->(s:Sensor) "
             "WHERE a.name CONTAINS $name "
             "RETURN a.name AS asset, s.name AS sensor, "
-            "s.sensor_type AS type, "
-            "sum.window, sum.avg_value, sum.min_value, "
-            "sum.max_value, sum.stddev, sum.sample_count, "
-            "sum.anomaly_flag "
-            "ORDER BY s.name, sum.window",
+            "s.sensor_type AS type, s.unit AS unit, "
+            "s.status AS status "
+            "ORDER BY s.name",
             params,
         )
     if entities.get("sensor_types"):
         params["sensor_type"] = entities["sensor_types"][0]
         return (
-            "MATCH (s:Sensor {sensor_type: $sensor_type})"
-            "-[:HAS_SUMMARY]->(sum:SensorSummary) "
+            "MATCH (s:Sensor {sensor_type: $sensor_type}) "
             "RETURN s.name AS sensor, s.sensor_type AS type, "
-            "sum.window, sum.avg_value, sum.min_value, "
-            "sum.max_value, sum.stddev, sum.sample_count, "
-            "sum.anomaly_flag "
-            "ORDER BY s.name, sum.window",
+            "s.unit AS unit, s.status AS status "
+            "ORDER BY s.name",
             params,
         )
     return (
-        "MATCH (s:Sensor)-[:HAS_SUMMARY]->(sum:SensorSummary) "
-        "WHERE sum.anomaly_flag = true "
-        "RETURN s.name AS sensor, s.sensor_type AS type, "
-        "sum.window, sum.avg_value, sum.min_value, "
-        "sum.max_value, sum.stddev, sum.sample_count, "
-        "sum.anomaly_flag "
-        "ORDER BY s.name LIMIT 50",
+        "MATCH (a:Asset)-[:HAS_SENSOR]->(s:Sensor) "
+        "RETURN a.name AS asset, s.name AS sensor, "
+        "s.sensor_type AS type, s.unit AS unit, "
+        "s.status AS status "
+        "ORDER BY a.name, s.name LIMIT 50",
         params,
     )
 
@@ -195,13 +201,11 @@ def search(entities: dict) -> tuple[str, dict]:
     if entities.get("fault_codes"):
         params["code"] = entities["fault_codes"][0]
         return (
-            "MATCH (f:Fault) WHERE f.code CONTAINS $code "
-            "RETURN f LIMIT 10",
+            "MATCH (f:Fault) WHERE f.code CONTAINS $code RETURN f LIMIT 10",
             params,
         )
     return (
-        "MATCH (n) RETURN labels(n) AS labels, "
-        "properties(n) AS props LIMIT 20",
+        "MATCH (n) RETURN labels(n) AS labels, properties(n) AS props LIMIT 20",
         params,
     )
 

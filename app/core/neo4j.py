@@ -44,7 +44,7 @@ async def get_neo4j_info() -> dict:
         driver = await get_neo4j_driver()
         async with driver.session(database=settings.neo4j_database) as session:
             counts = {}
-            for label in ["Asset", "Sensor", "Fault", "MaintenanceSchedule", "SensorSummary"]:
+            for label in ["Asset", "Sensor", "Fault", "MaintenanceSchedule"]:
                 result = await session.run(f"MATCH (n:{label}) RETURN count(n) AS cnt")
                 record = await result.single()
                 counts[f"total_{label.lower()}s"] = record["cnt"] if record else 0

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from loguru import logger
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import async_session_factory
@@ -135,10 +135,9 @@ class GraphSyncService:
                 return
             except Exception as e:
                 if attempt < MAX_RETRIES - 1:
-                    wait = 2 ** attempt
+                    wait = 2**attempt
                     logger.warning(
-                        f"Batch failed (attempt {attempt + 1}), "
-                        f"retrying in {wait}s: {e}"
+                        f"Batch failed (attempt {attempt + 1}), retrying in {wait}s: {e}"
                     )
                     await asyncio.sleep(wait)
                 else:
@@ -203,9 +202,6 @@ class GraphSyncService:
             counts["down_event_cause_edges"] = await self._sync_down_event_cause_edges(driver)
             counts["order_asset_edges"] = await self._sync_order_asset_edges(driver)
             counts["asset_location_edges"] = await self._sync_asset_location_edges(driver)
-
-            # Sensor summaries
-            counts["sensor_summaries"] = await self._sync_sensor_summaries(driver)
 
             total_records = sum(counts.values())
 
@@ -325,9 +321,6 @@ class GraphSyncService:
             # Delete nodes that were removed from PostgreSQL
             counts["deleted"] = await self._sync_deletions(driver)
 
-            # Recompute sensor summaries for modified sensors
-            counts["sensor_summaries"] = await self._sync_sensor_summaries(driver, since=last_sync)
-
             total_records = sum(counts.values())
 
             # Update SyncMetadata
@@ -362,9 +355,14 @@ class GraphSyncService:
             return 0
 
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "asset_type": "asset_type", "status": "status", "location": "location",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "asset_type": "asset_type",
+            "status": "status",
+            "location": "location",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -382,8 +380,12 @@ class GraphSyncService:
             return 0
 
         columns = {
-            "id": "pg_id", "name": "name", "sensor_type": "sensor_type",
-            "unit": "unit", "status": "status", "created_at": "created_at",
+            "id": "pg_id",
+            "name": "name",
+            "sensor_type": "sensor_type",
+            "unit": "unit",
+            "status": "status",
+            "created_at": "created_at",
             "updated_at": "updated_at",
         }
         cypher = (
@@ -401,10 +403,15 @@ class GraphSyncService:
             return 0
 
         columns = {
-            "id": "pg_id", "code": "code", "name": "name",
-            "description": "description", "severity": "severity",
-            "status": "status", "detected_at": "detected_at",
-            "resolved_at": "resolved_at", "created_at": "created_at",
+            "id": "pg_id",
+            "code": "code",
+            "name": "name",
+            "description": "description",
+            "severity": "severity",
+            "status": "status",
+            "detected_at": "detected_at",
+            "resolved_at": "resolved_at",
+            "created_at": "created_at",
             "updated_at": "updated_at",
         }
         cypher = (
@@ -424,13 +431,20 @@ class GraphSyncService:
             return 0
 
         columns = {
-            "id": "pg_id", "title": "title", "description": "description",
-            "maintenance_type": "maintenance_type", "status": "status",
-            "priority": "priority", "scheduled_date": "scheduled_date",
-            "completed_date": "completed_date", "assigned_to": "assigned_to",
+            "id": "pg_id",
+            "title": "title",
+            "description": "description",
+            "maintenance_type": "maintenance_type",
+            "status": "status",
+            "priority": "priority",
+            "scheduled_date": "scheduled_date",
+            "completed_date": "completed_date",
+            "assigned_to": "assigned_to",
             "recurrence": "recurrence",
             "estimated_duration_hours": "estimated_duration_hours",
-            "notes": "notes", "created_at": "created_at", "updated_at": "updated_at",
+            "notes": "notes",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -451,8 +465,12 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "rank": "rank",
-            "description": "description", "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "rank": "rank",
+            "description": "description",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -468,8 +486,12 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "category": "category", "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "category": "category",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -485,8 +507,11 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -501,9 +526,13 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "start_time": "start_time",
-            "end_time": "end_time", "description": "description",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "start_time": "start_time",
+            "end_time": "end_time",
+            "description": "description",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -519,9 +548,13 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "location_type": "location_type", "parent_id": "parent_id",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "location_type": "location_type",
+            "parent_id": "parent_id",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -537,8 +570,11 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -553,8 +589,11 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -569,9 +608,14 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "employee_id": "employee_id",
-            "email": "email", "phone": "phone", "status": "status",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "employee_id": "employee_id",
+            "email": "email",
+            "phone": "phone",
+            "status": "status",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -587,11 +631,15 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "task_type": "task_type", "status": "status",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "task_type": "task_type",
+            "status": "status",
             "estimated_duration_hours": "estimated_duration_hours",
             "doc_link": "doc_link",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -609,9 +657,13 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "action_type": "action_type", "sequence_order": "sequence_order",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "action_type": "action_type",
+            "sequence_order": "sequence_order",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -627,9 +679,13 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "description": "description",
-            "category": "category", "severity": "severity",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "description": "description",
+            "category": "category",
+            "severity": "severity",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -645,9 +701,14 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "name": "name", "part_number": "part_number",
-            "description": "description", "quantity_in_stock": "quantity_in_stock",
-            "unit": "unit", "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "name": "name",
+            "part_number": "part_number",
+            "description": "description",
+            "quantity_in_stock": "quantity_in_stock",
+            "unit": "unit",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -664,11 +725,16 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "asset_id": "asset_id",
-            "started_at": "started_at", "ended_at": "ended_at",
-            "downtime_minutes": "downtime_minutes", "description": "description",
-            "severity": "severity", "status": "status",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "asset_id": "asset_id",
+            "started_at": "started_at",
+            "ended_at": "ended_at",
+            "downtime_minutes": "downtime_minutes",
+            "description": "description",
+            "severity": "severity",
+            "status": "status",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -686,11 +752,16 @@ class GraphSyncService:
         if not rows:
             return 0
         columns = {
-            "id": "pg_id", "order_number": "order_number",
-            "title": "title", "description": "description",
-            "order_type": "order_type", "status": "status",
-            "priority": "priority", "requested_date": "requested_date",
-            "created_at": "created_at", "updated_at": "updated_at",
+            "id": "pg_id",
+            "order_number": "order_number",
+            "title": "title",
+            "description": "description",
+            "order_type": "order_type",
+            "status": "status",
+            "priority": "priority",
+            "requested_date": "requested_date",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
         }
         cypher = (
             "UNWIND $batch AS row "
@@ -797,10 +868,7 @@ class GraphSyncService:
             "MATCH (affected:Fault {pg_id: row.affected_id}) "
             "MERGE (causing)-[:CAUSES]->(affected)"
         )
-        batch = [
-            {"causing_id": str(r[0]), "affected_id": str(r[1])}
-            for r in rows
-        ]
+        batch = [{"causing_id": str(r[0]), "affected_id": str(r[1])} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_fault_maintenance_edges(self, driver, since=None) -> int:
@@ -820,10 +888,7 @@ class GraphSyncService:
             "MATCH (f:Fault {pg_id: row.fault_id}) "
             "MERGE (m)-[:ADDRESSES_FAULT]->(f)"
         )
-        batch = [
-            {"maintenance_id": str(r.id), "fault_id": str(r.fault_id)}
-            for r in rows
-        ]
+        batch = [{"maintenance_id": str(r.id), "fault_id": str(r.fault_id)} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_assigned_to_edges(self, driver, since=None) -> int:
@@ -898,7 +963,7 @@ class GraphSyncService:
             "MATCH (t:Task {pg_id: row.task_id}) "
             "MERGE (m)-[:planned_in]->(t)"
         )
-        batch = [{"material_id": str(r[0]), "task_id": str(r[1])} for r in rows]
+        batch = [{"task_id": str(r[0]), "material_id": str(r[1])} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_cause_role_edges(self, driver, since=None) -> int:
@@ -1021,136 +1086,28 @@ class GraphSyncService:
         batch = [{"asset_id": str(r[0]), "location_id": str(r[1])} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
-    async def _sync_sensor_summaries(self, driver, since=None) -> int:
-        """Compute aggregated sensor summaries from PostgreSQL and write to Neo4j."""
-        # First, clear old summaries (for full sync or modified sensors)
-        async with driver.session(database=settings.neo4j_database) as neo_session:
-            if not since:
-                await neo_session.run("MATCH (s:SensorSummary) DETACH DELETE s")
-
-        # Compute summaries via SQL
-        summary_sql = """
-        WITH windows AS (
-            SELECT
-                s.id AS sensor_id,
-                s.asset_id,
-                '1h' AS window,
-                date_trunc('hour', sd.timestamp) AS window_start,
-                date_trunc('hour', sd.timestamp)
-                    + interval '1 hour' AS window_end
-            FROM sensors s
-            JOIN sensor_data sd ON sd.sensor_id = s.id
-            WHERE sd.timestamp >= now() - interval '24 hours'
-            GROUP BY s.id, s.asset_id,
-                date_trunc('hour', sd.timestamp)
-
-            UNION ALL
-
-            SELECT
-                s.id AS sensor_id,
-                s.asset_id,
-                '6h' AS window,
-                date_trunc('day', sd.timestamp)
-                    + interval '6 hours'
-                    * floor(extract(hour from sd.timestamp) / 6)
-                    AS window_start,
-                date_trunc('day', sd.timestamp)
-                    + interval '6 hours'
-                    * (floor(extract(hour from sd.timestamp) / 6) + 1)
-                    AS window_end
-            FROM sensors s
-            JOIN sensor_data sd ON sd.sensor_id = s.id
-            WHERE sd.timestamp >= now() - interval '7 days'
-            GROUP BY s.id, s.asset_id,
-                date_trunc('day', sd.timestamp),
-                floor(extract(hour from sd.timestamp) / 6)
-
-            UNION ALL
-
-            SELECT
-                s.id AS sensor_id,
-                s.asset_id,
-                '24h' AS window,
-                date_trunc('day', sd.timestamp) AS window_start,
-                date_trunc('day', sd.timestamp) + interval '1 day' AS window_end
-            FROM sensors s
-            JOIN sensor_data sd ON sd.sensor_id = s.id
-            WHERE sd.timestamp >= now() - interval '30 days'
-            GROUP BY s.id, s.asset_id, date_trunc('day', sd.timestamp)
-        )
-        SELECT
-            w.sensor_id,
-            w.window,
-            w.window_start,
-            w.window_end,
-            avg(sd.value) AS avg_value,
-            min(sd.value) AS min_value,
-            max(sd.value) AS max_value,
-            COALESCE(stddev(sd.value), 0) AS stddev,
-            count(sd.value) AS sample_count,
-            CASE WHEN EXISTS (
-                SELECT 1 FROM sensor_data sd2
-                WHERE sd2.sensor_id = w.sensor_id
-                AND sd2.value > avg(sd.value) + 3 * COALESCE(stddev(sd.value), 0)
-                OR sd2.value < avg(sd.value) - 3 * COALESCE(stddev(sd.value), 0)
-            ) THEN true ELSE false END AS anomaly_flag
-        FROM windows w
-        JOIN sensor_data sd ON sd.sensor_id = w.sensor_id
-            AND sd.timestamp >= w.window_start AND sd.timestamp < w.window_end
-        GROUP BY w.sensor_id, w.window, w.window_start, w.window_end
-        ORDER BY w.sensor_id, w.window, w.window_start
-        """
-
-        async with async_session_factory() as pg_session:
-            result = await pg_session.execute(text(summary_sql))
-            rows = result.fetchall()
-
-        if not rows:
-            return 0
-
-        batch = []
-        for r in rows:
-            batch.append({
-                "sensor_pg_id": str(r[0]),
-                "window": r[1],
-                "window_start": r[2].isoformat() if r[2] else None,
-                "window_end": r[3].isoformat() if r[3] else None,
-                "avg_value": float(r[4]) if r[4] else 0.0,
-                "min_value": float(r[5]) if r[5] else 0.0,
-                "max_value": float(r[6]) if r[6] else 0.0,
-                "stddev": float(r[7]) if r[7] else 0.0,
-                "sample_count": int(r[8]) if r[8] else 0,
-                "anomaly_flag": bool(r[9]) if r[9] else False,
-            })
-
-        cypher = (
-            "UNWIND $batch AS row "
-            "MATCH (s:Sensor {pg_id: row.sensor_pg_id}) "
-            "MERGE (sum:SensorSummary {"
-            "sensor_pg_id: row.sensor_pg_id, window: row.window, "
-            "window_start: row.window_start}) "
-            "SET sum.window_end = row.window_end, "
-            "sum.avg_value = row.avg_value, sum.min_value = row.min_value, "
-            "sum.max_value = row.max_value, sum.stddev = row.stddev, "
-            "sum.sample_count = row.sample_count, "
-            "sum.anomaly_flag = row.anomaly_flag "
-            "MERGE (s)-[:HAS_SUMMARY]->(sum)"
-        )
-        return await self._write_raw_batches(driver, batch, cypher)
-
     async def _sync_deletions(self, driver) -> int:
         """Remove Neo4j nodes that no longer exist in PostgreSQL."""
         deleted = 0
         for model_class, label in [
-            (Asset, "Asset"), (Sensor, "Sensor"),
-            (Fault, "Fault"), (MaintenanceSchedule, "MaintenanceSchedule"),
-            (Worker, "Worker"), (Role, "Role"),
-            (Competence, "Competence"), (Level, "Level"),
-            (Task, "Task"), (Action, "Action"),
-            (Cause, "Cause"), (Material, "Material"),
-            (Shift, "Shift"), (DownEvent, "DownEvent"),
-            (Order, "Order"), (Location, "Location"),
-            (System, "System"), (Aggregate, "Aggregate"),
+            (Asset, "Asset"),
+            (Sensor, "Sensor"),
+            (Fault, "Fault"),
+            (MaintenanceSchedule, "MaintenanceSchedule"),
+            (Worker, "Worker"),
+            (Role, "Role"),
+            (Competence, "Competence"),
+            (Level, "Level"),
+            (Task, "Task"),
+            (Action, "Action"),
+            (Cause, "Cause"),
+            (Material, "Material"),
+            (Shift, "Shift"),
+            (DownEvent, "DownEvent"),
+            (Order, "Order"),
+            (Location, "Location"),
+            (System, "System"),
+            (Aggregate, "Aggregate"),
         ]:
             async with async_session_factory() as pg_session:
                 result = await pg_session.execute(select(model_class.id))

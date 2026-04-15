@@ -7,12 +7,48 @@ from openai import OpenAI
 from app.core.config import settings
 
 ALLOWED_CLAUSES = {
-    "MATCH", "OPTIONAL", "WHERE", "WITH", "RETURN", "ORDER", "BY",
-    "LIMIT", "SKIP", "AS", "AND", "OR", "NOT", "IN", "IS", "NULL",
-    "TRUE", "FALSE", "DISTINCT", "COLLECT", "COUNT", "SUM", "AVG",
-    "MIN", "MAX", "CONTAINS", "STARTS", "ENDS", "EXISTS", "CALL",
-    "YIELD", "UNWIND", "CASE", "WHEN", "THEN", "ELSE", "END",
-    "DETACH", "DESC", "ASC", "ON", "SET",
+    "MATCH",
+    "OPTIONAL",
+    "WHERE",
+    "WITH",
+    "RETURN",
+    "ORDER",
+    "BY",
+    "LIMIT",
+    "SKIP",
+    "AS",
+    "AND",
+    "OR",
+    "NOT",
+    "IN",
+    "IS",
+    "NULL",
+    "TRUE",
+    "FALSE",
+    "DISTINCT",
+    "COLLECT",
+    "COUNT",
+    "SUM",
+    "AVG",
+    "MIN",
+    "MAX",
+    "CONTAINS",
+    "STARTS",
+    "ENDS",
+    "EXISTS",
+    "CALL",
+    "YIELD",
+    "UNWIND",
+    "CASE",
+    "WHEN",
+    "THEN",
+    "ELSE",
+    "END",
+    "DETACH",
+    "DESC",
+    "ASC",
+    "ON",
+    "SET",
 }
 
 BLOCKED_CLAUSES = {"CREATE", "MERGE", "DELETE", "DROP", "REMOVE", "LOAD", "CSV"}
@@ -23,8 +59,6 @@ Node labels and properties:
 location, created_at, updated_at
 - Sensor: pg_id, name, sensor_type, unit, status, \
 created_at, updated_at
-- SensorSummary: sensor_pg_id, window, window_start, window_end, \
-avg_value, min_value, max_value, stddev, sample_count, anomaly_flag
 - Fault: pg_id, code, name, description, severity, status, \
 detected_at, resolved_at, created_at, updated_at
 - MaintenanceSchedule: pg_id, title, description, \
@@ -61,7 +95,6 @@ parent_id, created_at, updated_at
 Relationships:
 - (Asset)-[:HAS_PARENT]->(Asset)
 - (Asset)-[:HAS_SENSOR]->(Sensor)
-- (Sensor)-[:HAS_SUMMARY]->(SensorSummary)
 - (Asset)-[:HAS_FAULT]->(Fault)
 - (Fault)-[:CAUSES]->(Fault)
 - (Asset)-[:HAS_MAINTENANCE]->(MaintenanceSchedule)

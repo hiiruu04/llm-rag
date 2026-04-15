@@ -14,6 +14,7 @@ Return a JSON object with these fields (use null for any not found):
   "asset_names": ["name1"] or null,
   "asset_types": ["machine"] or null,
   "fault_codes": ["VIB-001"] or null,
+  "fault_names": ["Bearing Vibration High"] or null,
   "fault_severities": ["high"] or null,
   "sensor_types": ["temperature"] or null,
   "maintenance_types": ["preventive"] or null,

@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
 from loguru import logger
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
@@ -28,6 +28,7 @@ class IngestData(BaseModel):
     chunks_processed: int
     embedding_model: str
     processing_time_ms: int
+    graph_ingestion_triggered: bool = False
 
 
 class DocumentInfo(BaseModel):
@@ -45,12 +46,26 @@ class DeleteData(BaseModel):
     document_id: str
 
 
+async def _run_graph_ingestion(document_id: str, chunks: list[dict], file_name: str):
+    """Background task to ingest document graph data into Neo4j."""
+    try:
+        from app.services.graph_ingestion_service import get_graph_ingestion_service
+
+        service = get_graph_ingestion_service()
+        result = await service.ingest_document_graph(document_id, chunks, file_name)
+        logger.info(f"Background graph ingestion result: {result}")
+    except Exception as e:
+        logger.error(f"Background graph ingestion failed for {document_id}: {e}")
+
+
 @router.post("/documents", status_code=201)
 async def ingest_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     author: Optional[str] = Form(None),
+    enable_graph: bool = Form(True),
 ):
     document_id = str(uuid.uuid4())
     start_time = time.time()
@@ -88,6 +103,17 @@ async def ingest_document(
 
         file_path.unlink()
 
+        # Trigger background graph ingestion if enabled
+        graph_triggered = False
+        if enable_graph and settings.graphrag_enabled:
+            background_tasks.add_task(
+                _run_graph_ingestion,
+                document_id,
+                chunks,
+                file.filename,
+            )
+            graph_triggered = True
+
         processing_time = int((time.time() - start_time) * 1000)
 
         logger.info(
@@ -100,6 +126,7 @@ async def ingest_document(
             chunks_processed=len(chunks),
             embedding_model=settings.openai_embedding_model,
             processing_time_ms=processing_time,
+            graph_ingestion_triggered=graph_triggered,
         )
 
         return SuccessResponse.create(
@@ -225,6 +252,18 @@ async def delete_document(document_id: str):
                     },
                 },
             )
+
+        # Also clean up graph data
+        if settings.graphrag_enabled:
+            try:
+                from app.services.graph_ingestion_service import (
+                    get_graph_ingestion_service,
+                )
+
+                graph_service = get_graph_ingestion_service()
+                await graph_service.delete_document_graph(document_id)
+            except Exception as e:
+                logger.warning(f"Graph cleanup failed for {document_id}: {e}")
 
         data = DeleteData(document_id=document_id)
 

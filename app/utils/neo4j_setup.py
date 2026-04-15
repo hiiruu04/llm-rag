@@ -34,10 +34,7 @@ INDEXES = [
     "CREATE INDEX asset_type IF NOT EXISTS FOR (a:Asset) ON (a.asset_type)",
     "CREATE INDEX fault_severity IF NOT EXISTS FOR (f:Fault) ON (f.severity)",
     "CREATE INDEX fault_status IF NOT EXISTS FOR (f:Fault) ON (f.status)",
-    (
-        "CREATE INDEX maintenance_status IF NOT EXISTS "
-        "FOR (m:MaintenanceSchedule) ON (m.status)"
-    ),
+    ("CREATE INDEX maintenance_status IF NOT EXISTS FOR (m:MaintenanceSchedule) ON (m.status)"),
     (
         "CREATE INDEX maintenance_scheduled IF NOT EXISTS "
         "FOR (m:MaintenanceSchedule) ON (m.scheduled_date)"
@@ -70,10 +67,7 @@ FULLTEXT_INDEXES = [
         "CREATE FULLTEXT INDEX fault_name_search IF NOT EXISTS "
         "FOR (f:Fault) ON EACH [f.name, f.description]"
     ),
-    (
-        "CREATE FULLTEXT INDEX worker_name_search IF NOT EXISTS "
-        "FOR (w:Worker) ON EACH [w.name]"
-    ),
+    ("CREATE FULLTEXT INDEX worker_name_search IF NOT EXISTS FOR (w:Worker) ON EACH [w.name]"),
     (
         "CREATE FULLTEXT INDEX task_name_search IF NOT EXISTS "
         "FOR (t:Task) ON EACH [t.name, t.description]"
@@ -90,6 +84,37 @@ FULLTEXT_INDEXES = [
         "CREATE FULLTEXT INDEX location_name_search IF NOT EXISTS "
         "FOR (l:Location) ON EACH [l.name, l.description]"
     ),
+    (
+        "CREATE FULLTEXT INDEX sensor_name_search IF NOT EXISTS "
+        "FOR (s:Sensor) ON EACH [s.name]"
+    ),
+    (
+        "CREATE FULLTEXT INDEX material_name_search IF NOT EXISTS "
+        "FOR (m:Material) ON EACH [m.name, m.description]"
+    ),
+    # GraphRAG indexes
+    (
+        "CREATE FULLTEXT INDEX doc_entity_name_search IF NOT EXISTS "
+        "FOR (d:DocEntity) ON EACH [d.name, d.description]"
+    ),
+]
+
+# Additional constraints and indexes for GraphRAG DocumentChunk and DocEntity nodes
+GRAPHRAG_CONSTRAINTS = [
+    (
+        "CREATE CONSTRAINT document_chunk_id IF NOT EXISTS "
+        "FOR (c:DocumentChunk) REQUIRE c.chunk_id IS UNIQUE"
+    ),
+    (
+        "CREATE CONSTRAINT doc_entity_id IF NOT EXISTS "
+        "FOR (e:DocEntity) REQUIRE e.entity_id IS UNIQUE"
+    ),
+]
+
+GRAPHRAG_INDEXES = [
+    "CREATE INDEX document_chunk_doc_id IF NOT EXISTS FOR (c:DocumentChunk) ON (c.document_id)",
+    "CREATE INDEX doc_entity_type IF NOT EXISTS FOR (e:DocEntity) ON (e.entity_type)",
+    "CREATE INDEX doc_entity_source IF NOT EXISTS FOR (e:DocEntity) ON (e.source_document_id)",
 ]
 
 
@@ -108,5 +133,13 @@ async def setup_neo4j_schema() -> None:
         for stmt in FULLTEXT_INDEXES:
             await session.run(stmt)
         logger.info("Neo4j fulltext indexes created")
+
+        for stmt in GRAPHRAG_CONSTRAINTS:
+            await session.run(stmt)
+        logger.info("Neo4j GraphRAG constraints created")
+
+        for stmt in GRAPHRAG_INDEXES:
+            await session.run(stmt)
+        logger.info("Neo4j GraphRAG indexes created")
 
     logger.info("Neo4j schema initialization complete")

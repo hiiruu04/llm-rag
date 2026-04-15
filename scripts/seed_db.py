@@ -22,13 +22,39 @@ from sqlalchemy import func, select, text
 
 from app.core.database import async_session_factory, engine
 from app.models import (
-    Action, Aggregate, Asset, Cause, Competence, DownEvent, Fault,
-    Level, Location, Material, Order, Role, Shift, System, Task, Worker,
-    Sensor, SensorData, MaintenanceSchedule,
-    action_competence, asset_location, asset_system, asset_worker_assignment,
-    cause_role, down_event_cause, fault_cause_effect,
-    order_asset, role_task, system_aggregate,
-    task_competence, task_material, worker_competence, worker_shift,
+    Action,
+    Aggregate,
+    Asset,
+    Cause,
+    Competence,
+    DownEvent,
+    Fault,
+    Level,
+    Location,
+    Material,
+    Order,
+    Role,
+    Shift,
+    System,
+    Task,
+    Worker,
+    Sensor,
+    SensorData,
+    MaintenanceSchedule,
+    action_competence,
+    asset_location,
+    asset_system,
+    asset_worker_assignment,
+    cause_role,
+    down_event_cause,
+    fault_cause_effect,
+    order_asset,
+    role_task,
+    system_aggregate,
+    task_competence,
+    task_material,
+    worker_competence,
+    worker_shift,
 )
 
 if TYPE_CHECKING:
@@ -249,9 +275,7 @@ async def seed_assets(session: AsyncSession) -> dict[str, Asset]:
     return assets
 
 
-async def seed_sensors(
-    session: AsyncSession, assets: dict[str, Asset]
-) -> dict[str, Sensor]:
+async def seed_sensors(session: AsyncSession, assets: dict[str, Asset]) -> dict[str, Sensor]:
     """Create sensors for each asset. Returns 'asset_name:sensor_name' -> Sensor."""
     count = await session.scalar(func.count(Sensor.id))
     if count and count > 0:
@@ -284,9 +308,7 @@ async def seed_sensors(
     return created
 
 
-async def seed_faults(
-    session: AsyncSession, assets: dict[str, Asset]
-) -> dict[str, Fault]:
+async def seed_faults(session: AsyncSession, assets: dict[str, Asset]) -> dict[str, Fault]:
     """Create faults with cause-effect links. Returns fault code -> Fault."""
     count = await session.scalar(func.count(Fault.id))
     if count and count > 0:
@@ -297,16 +319,51 @@ async def seed_faults(
 
     fault_specs = [
         # (code, name, description, severity, status, asset_name, resolved)
-        ("B-HP-001", "High Pressure Warning", "Boiler pressure exceeded safe threshold",
-         "high", "open", "Boiler Unit 01", False),
-        ("B-LW-001", "Low Water Level", "Boiler water level dropped below minimum operating range",
-         "critical", "open", "Boiler Unit 01", False),
-        ("B-TL-001", "Tube Leak", "Detected leakage in boiler tubes",
-         "critical", "in_progress", "Boiler Unit 01", False),
-        ("T-BV-001", "Bearing Vibration High", "Turbine bearing vibration exceeds acceptable limits",
-         "high", "open", "Steam Turbine 01", False),
-        ("T-SSL-001", "Steam Seal Leak", "Steam leaking through turbine shaft seals",
-         "medium", "resolved", "Steam Turbine 01", True),
+        (
+            "B-HP-001",
+            "High Pressure Warning",
+            "Boiler pressure exceeded safe threshold",
+            "high",
+            "open",
+            "Boiler Unit 01",
+            False,
+        ),
+        (
+            "B-LW-001",
+            "Low Water Level",
+            "Boiler water level dropped below minimum operating range",
+            "critical",
+            "open",
+            "Boiler Unit 01",
+            False,
+        ),
+        (
+            "B-TL-001",
+            "Tube Leak",
+            "Detected leakage in boiler tubes",
+            "critical",
+            "in_progress",
+            "Boiler Unit 01",
+            False,
+        ),
+        (
+            "T-BV-001",
+            "Bearing Vibration High",
+            "Turbine bearing vibration exceeds acceptable limits",
+            "high",
+            "open",
+            "Steam Turbine 01",
+            False,
+        ),
+        (
+            "T-SSL-001",
+            "Steam Seal Leak",
+            "Steam leaking through turbine shaft seals",
+            "medium",
+            "resolved",
+            "Steam Turbine 01",
+            True,
+        ),
     ]
 
     faults: dict[str, Fault] = {}
@@ -347,9 +404,7 @@ async def seed_faults(
     return faults
 
 
-async def seed_sensor_data(
-    session: AsyncSession, sensors: dict[str, Sensor]
-) -> None:
+async def seed_sensor_data(session: AsyncSession, sensors: dict[str, Sensor]) -> None:
     """Generate 24 hours of hourly readings for every sensor."""
     count = await session.scalar(func.count(SensorData.id))
     if count and count > 0:
@@ -389,7 +444,9 @@ async def seed_sensor_data(
         await session.flush()
 
     await session.commit()
-    logger.info(f"Created {total_sensors * HOURS_OF_DATA} sensor data rows across {total_sensors} sensors.")
+    logger.info(
+        f"Created {total_sensors * HOURS_OF_DATA} sensor data rows across {total_sensors} sensors."
+    )
 
 
 async def seed_maintenance_schedules(
@@ -408,68 +465,147 @@ async def seed_maintenance_schedules(
         (
             "Boiler Annual Inspection",
             "Comprehensive annual inspection of Boiler Unit 01 including pressure vessel, safety valves, and controls",
-            "preventive", "scheduled", "high",
-            "Boiler Unit 01", None, "yearly", "Engineering Team A", 16.0, 30,
+            "preventive",
+            "scheduled",
+            "high",
+            "Boiler Unit 01",
+            None,
+            "yearly",
+            "Engineering Team A",
+            16.0,
+            30,
         ),
         (
             "Tube Leak Repair",
             "Emergency repair of detected tube leak in Boiler Unit 01",
-            "corrective", "in_progress", "critical",
-            "Boiler Unit 01", "B-TL-001", "none", "Repair Crew B", 8.0, 0,
+            "corrective",
+            "in_progress",
+            "critical",
+            "Boiler Unit 01",
+            "B-TL-001",
+            "none",
+            "Repair Crew B",
+            8.0,
+            0,
         ),
         (
             "Safety Valve Calibration",
             "Calibration and testing of boiler safety relief valves",
-            "preventive", "scheduled", "medium",
-            "Boiler Unit 01", None, "quarterly", "Instrumentation Team", 4.0, 14,
+            "preventive",
+            "scheduled",
+            "medium",
+            "Boiler Unit 01",
+            None,
+            "quarterly",
+            "Instrumentation Team",
+            4.0,
+            14,
         ),
         (
             "Feed Water Pump Overhaul",
             "Complete disassembly and inspection of feed water pump bearings and seals",
-            "preventive", "scheduled", "medium",
-            "Feed Water Pump", None, "yearly", "Mechanical Team", 12.0, 60,
+            "preventive",
+            "scheduled",
+            "medium",
+            "Feed Water Pump",
+            None,
+            "yearly",
+            "Mechanical Team",
+            12.0,
+            60,
         ),
         (
             "Combustion Efficiency Test",
             "Flue gas analysis and combustion tuning",
-            "predictive", "scheduled", "low",
-            "Combustion Chamber", None, "monthly", "Operations Team", 3.0, 7,
+            "predictive",
+            "scheduled",
+            "low",
+            "Combustion Chamber",
+            None,
+            "monthly",
+            "Operations Team",
+            3.0,
+            7,
         ),
         (
             "Turbine Bearing Replacement",
             "Replacement of high-vibration turbine bearings",
-            "corrective", "scheduled", "high",
-            "Steam Turbine 01", "T-BV-001", "none", "Mechanical Team", 24.0, 10,
+            "corrective",
+            "scheduled",
+            "high",
+            "Steam Turbine 01",
+            "T-BV-001",
+            "none",
+            "Mechanical Team",
+            24.0,
+            10,
         ),
         (
             "Turbine Vibration Analysis",
             "Predictive vibration monitoring and analysis",
-            "predictive", "completed", "medium",
-            "Steam Turbine 01", None, "monthly", "Condition Monitoring", 2.0, -5,
+            "predictive",
+            "completed",
+            "medium",
+            "Steam Turbine 01",
+            None,
+            "monthly",
+            "Condition Monitoring",
+            2.0,
+            -5,
         ),
         (
             "Steam Seal Replacement",
             "Replacement of worn turbine shaft seals",
-            "corrective", "completed", "medium",
-            "Steam Turbine 01", "T-SSL-001", "none", "Mechanical Team", 10.0, -10,
+            "corrective",
+            "completed",
+            "medium",
+            "Steam Turbine 01",
+            "T-SSL-001",
+            "none",
+            "Mechanical Team",
+            10.0,
+            -10,
         ),
         (
             "Generator Winding Inspection",
             "Thermographic and insulation resistance testing of generator windings",
-            "preventive", "scheduled", "medium",
-            "Generator", None, "quarterly", "Electrical Team", 6.0, 21,
+            "preventive",
+            "scheduled",
+            "medium",
+            "Generator",
+            None,
+            "quarterly",
+            "Electrical Team",
+            6.0,
+            21,
         ),
         (
             "Cooling System Flush",
             "Full coolant drain, flush, and refill with new coolant",
-            "preventive", "scheduled", "low",
-            "Cooling System", None, "quarterly", "Maintenance Crew C", 4.0, 45,
+            "preventive",
+            "scheduled",
+            "low",
+            "Cooling System",
+            None,
+            "quarterly",
+            "Maintenance Crew C",
+            4.0,
+            45,
         ),
     ]
 
     for (
-        title, desc, mtype, status, priority,
-        asset_name, fault_code, recurrence, assigned_to, est_hours, days_offset,
+        title,
+        desc,
+        mtype,
+        status,
+        priority,
+        asset_name,
+        fault_code,
+        recurrence,
+        assigned_to,
+        est_hours,
+        days_offset,
     ) in schedules:
         asset = assets[asset_name]
         fault_id = faults[fault_code].id if fault_code else None
@@ -505,8 +641,10 @@ async def seed_levels(session: AsyncSession) -> dict[str, Level]:
         return {l.name: l for l in (await session.scalars(select(Level))).all()}
     levels = {}
     for name, rank, desc in [
-        ("Beginner", 1, "Basic knowledge"), ("Intermediate", 2, "Solid working knowledge"),
-        ("Advanced", 3, "Expert-level"), ("Expert", 4, "Master-level, can train others"),
+        ("Beginner", 1, "Basic knowledge"),
+        ("Intermediate", 2, "Solid working knowledge"),
+        ("Advanced", 3, "Expert-level"),
+        ("Expert", 4, "Master-level, can train others"),
     ]:
         level = Level(name=name, rank=rank, description=desc)
         session.add(level)
@@ -566,6 +704,7 @@ async def seed_roles(session: AsyncSession) -> dict[str, Role]:
 
 async def seed_shifts(session: AsyncSession) -> dict[str, Shift]:
     from datetime import time
+
     count = await session.scalar(func.count(Shift.id))
     if count and count > 0:
         return {s.name: s for s in (await session.scalars(select(Shift))).all()}
@@ -590,16 +729,41 @@ async def seed_locations(session: AsyncSession) -> dict[str, Location]:
     plant = Location(name="Main Plant", description="Main plant", location_type="plant")
     session.add(plant)
     await session.flush()
-    building_a = Location(name="Building A", description="Boiler house", location_type="building", parent_id=plant.id)
-    building_b = Location(name="Building B", description="Turbine hall", location_type="building", parent_id=plant.id)
+    building_a = Location(
+        name="Building A", description="Boiler house", location_type="building", parent_id=plant.id
+    )
+    building_b = Location(
+        name="Building B", description="Turbine hall", location_type="building", parent_id=plant.id
+    )
     session.add_all([building_a, building_b])
     await session.flush()
-    boiler_room = Location(name="Boiler Room A", description="Boiler area", location_type="room", parent_id=building_a.id)
-    turbine_hall = Location(name="Turbine Hall B", description="Turbine floor", location_type="room", parent_id=building_b.id)
-    control_room = Location(name="Control Room", description="Central control", location_type="room", parent_id=building_b.id)
+    boiler_room = Location(
+        name="Boiler Room A",
+        description="Boiler area",
+        location_type="room",
+        parent_id=building_a.id,
+    )
+    turbine_hall = Location(
+        name="Turbine Hall B",
+        description="Turbine floor",
+        location_type="room",
+        parent_id=building_b.id,
+    )
+    control_room = Location(
+        name="Control Room",
+        description="Central control",
+        location_type="room",
+        parent_id=building_b.id,
+    )
     session.add_all([boiler_room, turbine_hall, control_room])
-    locs = {"Main Plant": plant, "Building A": building_a, "Building B": building_b,
-            "Boiler Room A": boiler_room, "Turbine Hall B": turbine_hall, "Control Room": control_room}
+    locs = {
+        "Main Plant": plant,
+        "Building A": building_a,
+        "Building B": building_b,
+        "Boiler Room A": boiler_room,
+        "Turbine Hall B": turbine_hall,
+        "Control Room": control_room,
+    }
     await session.commit()
     logger.info(f"Created {len(locs)} locations.")
     return locs
@@ -611,7 +775,8 @@ async def seed_aggregates(session: AsyncSession) -> dict[str, Aggregate]:
         return {a.name: a for a in (await session.scalars(select(Aggregate))).all()}
     aggs = {}
     for name, desc in [
-        ("Steam Generation Line", "Steam gen line"), ("Power Generation Unit", "Turbine-gen set"),
+        ("Steam Generation Line", "Steam gen line"),
+        ("Power Generation Unit", "Turbine-gen set"),
         ("Cooling Circuit", "Cooling water circuit"),
     ]:
         a = Aggregate(name=name, description=desc)
@@ -628,9 +793,12 @@ async def seed_systems(session: AsyncSession) -> dict[str, System]:
         return {s.name: s for s in (await session.scalars(select(System))).all()}
     systems = {}
     for name, desc in [
-        ("Feed Water System", "Feed water supply"), ("Combustion System", "Fuel delivery"),
-        ("Steam System", "Steam piping"), ("Turbine System", "Turbine and governor"),
-        ("Generator System", "Generator and excitation"), ("Cooling Water System", "Cooling pumps"),
+        ("Feed Water System", "Feed water supply"),
+        ("Combustion System", "Fuel delivery"),
+        ("Steam System", "Steam piping"),
+        ("Turbine System", "Turbine and governor"),
+        ("Generator System", "Generator and excitation"),
+        ("Cooling Water System", "Cooling pumps"),
         ("Lubrication System", "Bearing lubrication"),
     ]:
         s = System(name=name, description=desc)
@@ -662,25 +830,40 @@ async def seed_workers(session, competences, levels, shifts):
     # Assign competences
     comp_map = [
         ("John Smith", [("Boiler Operation", "Advanced"), ("Safety Procedures", "Expert")]),
-        ("Maria Garcia", [("Electrical Systems", "Advanced"), ("PLC Programming", "Intermediate")]),
+        (
+            "Maria Garcia",
+            [("Electrical Systems", "Advanced"), ("PLC Programming", "Intermediate")],
+        ),
         ("Robert Chen", [("Vibration Analysis", "Expert"), ("Turbine Operation", "Advanced")]),
         ("Sarah Johnson", [("Pump Maintenance", "Advanced"), ("Welding", "Intermediate")]),
-        ("Ahmed Hassan", [("Thermal Imaging", "Advanced"), ("Electrical Systems", "Intermediate")]),
+        (
+            "Ahmed Hassan",
+            [("Thermal Imaging", "Advanced"), ("Electrical Systems", "Intermediate")],
+        ),
         ("Lisa Wong", [("Safety Procedures", "Advanced")]),
         ("James Brown", [("Pipe Fitting", "Expert"), ("Welding", "Advanced")]),
     ]
     for wname, comps in comp_map:
         for cname, lname in comps:
-            await session.execute(worker_competence.insert().values(
-                worker_id=workers[wname].id, competence_id=competences[cname].id,
-                level_id=levels.get(lname, {}).id if lname in levels else None,
-            ))
+            await session.execute(
+                worker_competence.insert().values(
+                    worker_id=workers[wname].id,
+                    competence_id=competences[cname].id,
+                    level_id=levels.get(lname, {}).id if lname in levels else None,
+                )
+            )
     # Assign shifts
-    for wname, sname in [("John Smith", "Morning Shift"), ("Maria Garcia", "Morning Shift"),
-                          ("Robert Chen", "Afternoon Shift"), ("Sarah Johnson", "Afternoon Shift"),
-                          ("Ahmed Hassan", "Night Shift"), ("James Brown", "Morning Shift")]:
-        await session.execute(worker_shift.insert().values(
-            worker_id=workers[wname].id, shift_id=shifts[sname].id))
+    for wname, sname in [
+        ("John Smith", "Morning Shift"),
+        ("Maria Garcia", "Morning Shift"),
+        ("Robert Chen", "Afternoon Shift"),
+        ("Sarah Johnson", "Afternoon Shift"),
+        ("Ahmed Hassan", "Night Shift"),
+        ("James Brown", "Morning Shift"),
+    ]:
+        await session.execute(
+            worker_shift.insert().values(worker_id=workers[wname].id, shift_id=shifts[sname].id)
+        )
     await session.commit()
     logger.info(f"Created {len(workers)} workers.")
     return workers
@@ -692,16 +875,36 @@ async def seed_tasks(session):
         return {t.name: t for t in (await session.scalars(select(Task))).all()}
     tasks = {}
     for name, desc, ttype, st, hrs, doc in [
-        ("Bearing Replacement", "Replace turbine bearings", "repair", "pending", 24.0, "/docs/bearing-replace.pdf"),
+        (
+            "Bearing Replacement",
+            "Replace turbine bearings",
+            "repair",
+            "pending",
+            24.0,
+            "/docs/bearing-replace.pdf",
+        ),
         ("Safety Valve Testing", "Test safety valves", "inspection", "pending", 4.0, None),
-        ("Boiler Tube Inspection", "Internal tube inspection", "inspection", "completed", 8.0, "/docs/tube-inspect.pdf"),
+        (
+            "Boiler Tube Inspection",
+            "Internal tube inspection",
+            "inspection",
+            "completed",
+            8.0,
+            "/docs/tube-inspect.pdf",
+        ),
         ("Pump Seal Replacement", "Replace pump seals", "repair", "in_progress", 6.0, None),
         ("Combustion Tuning", "Optimize combustion", "calibration", "pending", 3.0, None),
         ("Generator Winding Test", "Winding insulation test", "inspection", "pending", 6.0, None),
         ("Turbine Alignment", "Turbine-generator alignment", "calibration", "pending", 12.0, None),
     ]:
-        t = Task(name=name, description=desc, task_type=ttype, status=st,
-                 estimated_duration_hours=hrs, doc_link=doc)
+        t = Task(
+            name=name,
+            description=desc,
+            task_type=ttype,
+            status=st,
+            estimated_duration_hours=hrs,
+            doc_link=doc,
+        )
         session.add(t)
         tasks[name] = t
     await session.commit()
@@ -785,27 +988,101 @@ async def seed_down_events(session, assets, causes):
     now = datetime.now(timezone.utc)
     events = {}
     for desc, aname, dur, sev, st, cnames in [
-        ("Boiler emergency shutdown", "Boiler Unit 01", 180, "high", "resolved", ["Thermal Fatigue", "Corrosion"]),
-        ("Turbine vibration trip", "Steam Turbine 01", 360, "critical", "active", ["Vibration Damage", "Bearing Wear"]),
+        (
+            "Boiler emergency shutdown",
+            "Boiler Unit 01",
+            180,
+            "high",
+            "resolved",
+            ["Thermal Fatigue", "Corrosion"],
+        ),
+        (
+            "Turbine vibration trip",
+            "Steam Turbine 01",
+            360,
+            "critical",
+            "active",
+            ["Vibration Damage", "Bearing Wear"],
+        ),
         ("Pump seal failure", "Feed Water Pump", 90, "medium", "resolved", ["Seal Degradation"]),
-        ("Generator overheat", "Generator", 240, "high", "active", ["Thermal Fatigue", "Electrical Fault"]),
+        (
+            "Generator overheat",
+            "Generator",
+            240,
+            "high",
+            "active",
+            ["Thermal Fatigue", "Electrical Fault"],
+        ),
         ("Cooling system leak", "Cooling System", 60, "low", "resolved", ["Corrosion"]),
+        # Unresolved down events -- still ongoing
+        (
+            "Boiler low water level trip",
+            "Boiler Unit 01",
+            0,
+            "critical",
+            "active",
+            ["Corrosion", "Improper Lubrication"],
+        ),
+        (
+            "Combustion chamber flame failure",
+            "Combustion Chamber",
+            0,
+            "critical",
+            "active",
+            ["Foreign Object Damage"],
+        ),
+        (
+            "Feed water pump cavitation",
+            "Feed Water Pump",
+            0,
+            "high",
+            "active",
+            ["Bearing Wear", "Seal Degradation"],
+        ),
+        (
+            "Turbine lubrication system alarm",
+            "Steam Turbine 01",
+            0,
+            "high",
+            "active",
+            ["Improper Lubrication", "Bearing Wear"],
+        ),
     ]:
-        started = now - timedelta(hours=random.randint(48, 240))
+        started = now - timedelta(hours=random.randint(1, 48))
         ended = started + timedelta(minutes=dur) if st == "resolved" else None
-        e = DownEvent(asset_id=assets[aname].id, started_at=started, ended_at=ended,
-                      downtime_minutes=dur, description=desc, severity=sev, status=st)
+        actual_dur = dur if st == "resolved" else None
+        e = DownEvent(
+            asset_id=assets[aname].id,
+            started_at=started,
+            ended_at=ended,
+            downtime_minutes=actual_dur,
+            description=desc,
+            severity=sev,
+            status=st,
+        )
         session.add(e)
         events[desc] = e
     await session.flush()
-    for desc, _, _, _, _, cnames in [("Boiler emergency shutdown", None, 0, None, None, ["Thermal Fatigue", "Corrosion"]),
-        ("Turbine vibration trip", None, 0, None, None, ["Vibration Damage", "Bearing Wear"]),
-        ("Pump seal failure", None, 0, None, None, ["Seal Degradation"]),
-        ("Generator overheat", None, 0, None, None, ["Thermal Fatigue", "Electrical Fault"]),
-        ("Cooling system leak", None, 0, None, None, ["Corrosion"])]:
+    # Re-link cause associations from the expanded list
+    cause_map = {
+        "Boiler emergency shutdown": ["Thermal Fatigue", "Corrosion"],
+        "Turbine vibration trip": ["Vibration Damage", "Bearing Wear"],
+        "Pump seal failure": ["Seal Degradation"],
+        "Generator overheat": ["Thermal Fatigue", "Electrical Fault"],
+        "Cooling system leak": ["Corrosion"],
+        "Boiler low water level trip": ["Corrosion", "Improper Lubrication"],
+        "Combustion chamber flame failure": ["Foreign Object Damage"],
+        "Feed water pump cavitation": ["Bearing Wear", "Seal Degradation"],
+        "Turbine lubrication system alarm": ["Improper Lubrication", "Bearing Wear"],
+    }
+    for desc, cnames in cause_map.items():
         for cn in cnames:
-            await session.execute(down_event_cause.insert().values(
-                down_event_id=events[desc].id, cause_id=causes[cn].id))
+            await session.execute(
+                down_event_cause.insert().values(
+                    down_event_id=events[desc].id,
+                    cause_id=causes[cn].id,
+                )
+            )
     await session.commit()
     logger.info(f"Created {len(events)} down events.")
     return events
@@ -817,93 +1094,303 @@ async def seed_orders(session, assets):
         return {}
     now = datetime.now(timezone.utc)
     orders = {}
-    links = {"WO-2025-001": ["Boiler Unit 01"], "WO-2025-002": ["Steam Turbine 01"],
-             "WO-2025-003": ["Boiler Unit 01"], "WO-2025-004": ["Feed Water Pump"],
-             "WO-2025-005": ["Generator"], "WO-2025-006": ["Cooling System"]}
+    links = {
+        "WO-2025-001": ["Boiler Unit 01"],
+        "WO-2025-002": ["Steam Turbine 01"],
+        "WO-2025-003": ["Boiler Unit 01"],
+        "WO-2025-004": ["Feed Water Pump"],
+        "WO-2025-005": ["Generator"],
+        "WO-2025-006": ["Cooling System"],
+        # Orders linked to unresolved down events
+        "WO-2025-007": ["Boiler Unit 01"],
+        "WO-2025-008": ["Combustion Chamber"],
+        "WO-2025-009": ["Feed Water Pump"],
+        "WO-2025-010": ["Steam Turbine 01"],
+    }
     for num, title, desc, otype, st, pri in [
-        ("WO-2025-001", "Boiler Tube Repair", "Emergency tube repair", "repair", "in_progress", "critical"),
-        ("WO-2025-002", "Turbine Bearing Inspection", "Bearing inspection", "inspection", "open", "high"),
-        ("WO-2025-003", "Annual Boiler Inspection", "Scheduled inspection", "maintenance", "open", "medium"),
-        ("WO-2025-004", "Pump Seal Replacement", "Seal replacement", "repair", "completed", "medium"),
-        ("WO-2025-005", "Generator Thermography", "Thermographic survey", "inspection", "open", "low"),
+        (
+            "WO-2025-001",
+            "Boiler Tube Repair",
+            "Emergency tube repair",
+            "repair",
+            "in_progress",
+            "critical",
+        ),
+        (
+            "WO-2025-002",
+            "Turbine Bearing Inspection",
+            "Bearing inspection",
+            "inspection",
+            "open",
+            "high",
+        ),
+        (
+            "WO-2025-003",
+            "Annual Boiler Inspection",
+            "Scheduled inspection",
+            "maintenance",
+            "open",
+            "medium",
+        ),
+        (
+            "WO-2025-004",
+            "Pump Seal Replacement",
+            "Seal replacement",
+            "repair",
+            "completed",
+            "medium",
+        ),
+        (
+            "WO-2025-005",
+            "Generator Thermography",
+            "Thermographic survey",
+            "inspection",
+            "open",
+            "low",
+        ),
         ("WO-2025-006", "Cooling System Flush", "Quarterly flush", "maintenance", "open", "low"),
+        # Orders for unresolved down events
+        (
+            "WO-2025-007",
+            "Boiler Low Water Emergency",
+            "Investigate and resolve low water level trip",
+            "repair",
+            "in_progress",
+            "critical",
+        ),
+        (
+            "WO-2025-008",
+            "Combustion Chamber Flame Restore",
+            "Restore combustion after flame failure",
+            "repair",
+            "open",
+            "critical",
+        ),
+        (
+            "WO-2025-009",
+            "Pump Cavitation Investigation",
+            "Diagnose and fix feed water pump cavitation",
+            "inspection",
+            "open",
+            "high",
+        ),
+        (
+            "WO-2025-010",
+            "Turbine Lube System Overhaul",
+            "Overhaul turbine lubrication system after alarm",
+            "repair",
+            "in_progress",
+            "high",
+        ),
     ]:
-        o = Order(order_number=num, title=title, description=desc, order_type=otype,
-                  status=st, priority=pri, requested_date=now + timedelta(days=random.randint(0, 14)))
+        o = Order(
+            order_number=num,
+            title=title,
+            description=desc,
+            order_type=otype,
+            status=st,
+            priority=pri,
+            requested_date=now + timedelta(days=random.randint(0, 14)),
+        )
         session.add(o)
         orders[num] = o
     await session.flush()
     for num, anames in links.items():
         for aname in anames:
-            await session.execute(order_asset.insert().values(
-                order_id=orders[num].id, asset_id=assets[aname].id))
+            await session.execute(
+                order_asset.insert().values(
+                    order_id=orders[num].id,
+                    asset_id=assets[aname].id,
+                )
+            )
     await session.commit()
     logger.info(f"Created {len(orders)} orders.")
     return orders
 
 
-async def seed_associations(session, assets, workers, systems, aggregates, locations,
-                              competences, tasks, materials, causes, roles, actions):
-    # Asset <-> Worker
-    for aname, wname in [("Boiler Unit 01", "John Smith"), ("Boiler Unit 01", "Sarah Johnson"),
-                          ("Steam Turbine 01", "Robert Chen"), ("Steam Turbine 01", "Ahmed Hassan"),
-                          ("Generator", "Maria Garcia"), ("Feed Water Pump", "Sarah Johnson"),
-                          ("Feed Water Pump", "James Brown"), ("Cooling System", "James Brown")]:
-        await session.execute(asset_worker_assignment.insert().values(
-            asset_id=assets[aname].id, worker_id=workers[wname].id))
-    # Asset <-> System
-    for aname, snames in [("Boiler Unit 01", ["Feed Water System", "Combustion System", "Steam System"]),
-                           ("Steam Turbine 01", ["Steam System", "Turbine System", "Lubrication System"]),
-                           ("Generator", ["Generator System", "Cooling Water System"]),
-                           ("Feed Water Pump", ["Feed Water System"]),
-                           ("Cooling System", ["Cooling Water System"])]:
+async def seed_associations(
+    session,
+    assets,
+    workers,
+    systems,
+    aggregates,
+    locations,
+    competences,
+    tasks,
+    materials,
+    causes,
+    roles,
+    actions,
+):
+    # Asset <-> Worker (every asset has assigned workers)
+    for aname, wname in [
+        ("Boiler Unit 01", "John Smith"),
+        ("Boiler Unit 01", "Sarah Johnson"),
+        ("Steam Turbine 01", "Robert Chen"),
+        ("Steam Turbine 01", "Ahmed Hassan"),
+        ("Generator", "Maria Garcia"),
+        ("Feed Water Pump", "Sarah Johnson"),
+        ("Feed Water Pump", "James Brown"),
+        ("Cooling System", "James Brown"),
+        ("Combustion Chamber", "John Smith"),
+        ("Combustion Chamber", "Ahmed Hassan"),
+        ("Power Plant", "Lisa Wong"),
+    ]:
+        await session.execute(
+            asset_worker_assignment.insert().values(
+                asset_id=assets[aname].id,
+                worker_id=workers[wname].id,
+            )
+        )
+    # Asset <-> System (every asset connected to its systems)
+    for aname, snames in [
+        (
+            "Boiler Unit 01",
+            [
+                "Feed Water System",
+                "Combustion System",
+                "Steam System",
+            ],
+        ),
+        (
+            "Steam Turbine 01",
+            [
+                "Steam System",
+                "Turbine System",
+                "Lubrication System",
+            ],
+        ),
+        ("Generator", ["Generator System", "Cooling Water System"]),
+        ("Feed Water Pump", ["Feed Water System"]),
+        ("Cooling System", ["Cooling Water System"]),
+        ("Combustion Chamber", ["Combustion System"]),
+    ]:
         for sn in snames:
-            await session.execute(asset_system.insert().values(
-                asset_id=assets[aname].id, system_id=systems[sn].id))
+            await session.execute(
+                asset_system.insert().values(
+                    asset_id=assets[aname].id,
+                    system_id=systems[sn].id,
+                )
+            )
     # System <-> Aggregate
-    for sn, agg in [("Feed Water System", "Steam Generation Line"), ("Combustion System", "Steam Generation Line"),
-                     ("Steam System", "Steam Generation Line"), ("Turbine System", "Power Generation Unit"),
-                     ("Generator System", "Power Generation Unit"), ("Cooling Water System", "Cooling Circuit")]:
-        await session.execute(system_aggregate.insert().values(
-            system_id=systems[sn].id, aggregate_id=aggregates[agg].id))
-    # Asset <-> Location
-    for aname, loc in [("Boiler Unit 01", "Boiler Room A"), ("Feed Water Pump", "Boiler Room A"),
-                        ("Steam Turbine 01", "Turbine Hall B"), ("Generator", "Turbine Hall B"),
-                        ("Cooling System", "Turbine Hall B")]:
-        await session.execute(asset_location.insert().values(
-            asset_id=assets[aname].id, location_id=locations[loc].id))
-    # Cause <-> Role
-    for cn, rn in [("Bearing Wear", "Senior Mechanic"), ("Corrosion", "Maintenance Planner"),
-                    ("Thermal Fatigue", "Senior Mechanic"), ("Vibration Damage", "Turbine Engineer"),
-                    ("Electrical Fault", "Electrician"), ("Seal Degradation", "Senior Mechanic"),
-                    ("Foreign Object Damage", "Shift Supervisor")]:
-        await session.execute(cause_role.insert().values(
-            cause_id=causes[cn].id, role_id=roles[rn].id))
-    # Role <-> Task
-    for rn, tn in [("Senior Mechanic", "Bearing Replacement"), ("Senior Mechanic", "Pump Seal Replacement"),
-                    ("Instrument Technician", "Safety Valve Testing"), ("Senior Mechanic", "Boiler Tube Inspection"),
-                    ("Electrician", "Generator Winding Test"), ("Turbine Engineer", "Turbine Alignment")]:
-        await session.execute(role_task.insert().values(
-            role_id=roles[rn].id, task_id=tasks[tn].id))
-    # Task <-> Competence
-    for tn, cn in [("Bearing Replacement", "Vibration Analysis"), ("Bearing Replacement", "Turbine Operation"),
-                    ("Safety Valve Testing", "Boiler Operation"), ("Pump Seal Replacement", "Pump Maintenance"),
-                    ("Combustion Tuning", "Boiler Operation"), ("Generator Winding Test", "Electrical Systems"),
-                    ("Turbine Alignment", "Turbine Operation")]:
-        await session.execute(task_competence.insert().values(
-            task_id=tasks[tn].id, competence_id=competences[cn].id))
+    for sn, agg in [
+        ("Feed Water System", "Steam Generation Line"),
+        ("Combustion System", "Steam Generation Line"),
+        ("Steam System", "Steam Generation Line"),
+        ("Turbine System", "Power Generation Unit"),
+        ("Generator System", "Power Generation Unit"),
+        ("Cooling Water System", "Cooling Circuit"),
+        ("Lubrication System", "Power Generation Unit"),
+    ]:
+        await session.execute(
+            system_aggregate.insert().values(
+                system_id=systems[sn].id,
+                aggregate_id=aggregates[agg].id,
+            )
+        )
+    # Asset <-> Location (every asset has a physical location)
+    for aname, loc in [
+        ("Boiler Unit 01", "Boiler Room A"),
+        ("Feed Water Pump", "Boiler Room A"),
+        ("Combustion Chamber", "Boiler Room A"),
+        ("Steam Turbine 01", "Turbine Hall B"),
+        ("Generator", "Turbine Hall B"),
+        ("Cooling System", "Turbine Hall B"),
+        ("Power Plant", "Main Plant"),
+    ]:
+        await session.execute(
+            asset_location.insert().values(
+                asset_id=assets[aname].id,
+                location_id=locations[loc].id,
+            )
+        )
+    # Cause <-> Role (all 8 causes linked to responsible roles)
+    for cn, rn in [
+        ("Bearing Wear", "Senior Mechanic"),
+        ("Corrosion", "Maintenance Planner"),
+        ("Thermal Fatigue", "Senior Mechanic"),
+        ("Vibration Damage", "Turbine Engineer"),
+        ("Electrical Fault", "Electrician"),
+        ("Seal Degradation", "Senior Mechanic"),
+        ("Foreign Object Damage", "Shift Supervisor"),
+        ("Improper Lubrication", "Boiler Operator"),
+    ]:
+        await session.execute(
+            cause_role.insert().values(
+                cause_id=causes[cn].id,
+                role_id=roles[rn].id,
+            )
+        )
+    # Role <-> Task (all roles linked to tasks they can perform)
+    for rn, tn in [
+        ("Senior Mechanic", "Bearing Replacement"),
+        ("Senior Mechanic", "Pump Seal Replacement"),
+        ("Senior Mechanic", "Boiler Tube Inspection"),
+        ("Instrument Technician", "Safety Valve Testing"),
+        ("Electrician", "Generator Winding Test"),
+        ("Turbine Engineer", "Turbine Alignment"),
+        ("Boiler Operator", "Combustion Tuning"),
+        ("Safety Officer", "Safety Valve Testing"),
+    ]:
+        await session.execute(
+            role_task.insert().values(
+                role_id=roles[rn].id,
+                task_id=tasks[tn].id,
+            )
+        )
+    # Task <-> Competence (all tasks linked to required competences)
+    for tn, cn in [
+        ("Bearing Replacement", "Vibration Analysis"),
+        ("Bearing Replacement", "Turbine Operation"),
+        ("Safety Valve Testing", "Boiler Operation"),
+        ("Pump Seal Replacement", "Pump Maintenance"),
+        ("Combustion Tuning", "Boiler Operation"),
+        ("Generator Winding Test", "Electrical Systems"),
+        ("Turbine Alignment", "Turbine Operation"),
+        ("Boiler Tube Inspection", "Welding"),
+        ("Boiler Tube Inspection", "Thermal Imaging"),
+    ]:
+        await session.execute(
+            task_competence.insert().values(
+                task_id=tasks[tn].id,
+                competence_id=competences[cn].id,
+            )
+        )
     # Task <-> Material
-    for tn, mn, qty in [("Bearing Replacement", "Bearing 6205-2RS", 2),
-                         ("Pump Seal Replacement", "Mechanical Seal DN40", 1),
-                         ("Boiler Tube Inspection", "Boiler Tube SA213-T12", 2),
-                         ("Safety Valve Testing", "Safety Valve Spring", 1)]:
-        await session.execute(task_material.insert().values(
-            task_id=tasks[tn].id, material_id=materials[mn].id, quantity_required=qty))
+    for tn, mn, qty in [
+        ("Bearing Replacement", "Bearing 6205-2RS", 2),
+        ("Pump Seal Replacement", "Mechanical Seal DN40", 1),
+        ("Boiler Tube Inspection", "Boiler Tube SA213-T12", 2),
+        ("Safety Valve Testing", "Safety Valve Spring", 1),
+        ("Bearing Replacement", "Turbine Oil ISO 46", 1),
+        ("Pump Seal Replacement", "Gasket Material 3mm", 2),
+        ("Boiler Tube Inspection", "Welding Electrode E7018", 5),
+        ("Turbine Alignment", "Turbine Oil ISO 46", 1),
+    ]:
+        await session.execute(
+            task_material.insert().values(
+                task_id=tasks[tn].id,
+                material_id=materials[mn].id,
+                quantity_required=qty,
+            )
+        )
     # Action <-> Competence
-    for an, cn in [("Inspect Components", "Vibration Analysis"), ("Inspect Components", "Thermal Imaging"),
-                    ("Replace Parts", "Welding"), ("Replace Parts", "Pipe Fitting")]:
-        await session.execute(action_competence.insert().values(
-            action_id=actions[an].id, competence_id=competences[cn].id))
+    for an, cn in [
+        ("Inspect Components", "Vibration Analysis"),
+        ("Inspect Components", "Thermal Imaging"),
+        ("Replace Parts", "Welding"),
+        ("Replace Parts", "Pipe Fitting"),
+        ("Isolate Equipment", "Safety Procedures"),
+        ("Test Run", "Turbine Operation"),
+        ("Test Run", "Boiler Operation"),
+        ("Drain System", "Pipe Fitting"),
+    ]:
+        await session.execute(
+            action_competence.insert().values(
+                action_id=actions[an].id,
+                competence_id=competences[cn].id,
+            )
+        )
     await session.commit()
     logger.info("Created all association links.")
 
@@ -938,8 +1425,20 @@ async def run(clean: bool = False) -> None:
         orders = await seed_orders(session, assets)
         await seed_sensor_data(session, sensors)
         await seed_maintenance_schedules(session, assets, faults)
-        await seed_associations(session, assets, workers, systems, aggregates, locations,
-                                competences, tasks, materials, causes, roles, actions)
+        await seed_associations(
+            session,
+            assets,
+            workers,
+            systems,
+            aggregates,
+            locations,
+            competences,
+            tasks,
+            materials,
+            causes,
+            roles,
+            actions,
+        )
 
     await engine.dispose()
     logger.info("Seeding complete.")

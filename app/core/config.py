@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     mcp_client_enabled: bool = False
     mcp_client_servers: str = "[]"  # JSON array of {name, url, api_key?}
 
+    # GraphRAG
+    graphrag_enabled: bool = True
+    graphrag_max_entities_per_chunk: int = 20
+    graphrag_neighborhood_hops: int = 2
+
     @property
     def database_url(self) -> str:
         return (

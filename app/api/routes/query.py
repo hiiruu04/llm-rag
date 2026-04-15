@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.api.models import SuccessResponse
 from app.core.graph_rag_pipeline import get_graph_rag_pipeline
+from app.core.graphrag_pipeline import get_graphrag_pipeline
 from app.core.hybrid_pipeline import get_hybrid_pipeline
 from app.core.rag_pipeline import get_rag_pipeline
 from app.services.intent_classifier import get_intent_classifier
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/api/v1", tags=["query"])
 
 class QueryRequest(BaseModel):
     question: str
-    mode: Literal["auto", "vector", "graph", "hybrid"] = "auto"
+    mode: Literal["auto", "vector", "graph", "graphrag", "hybrid"] = "auto"
 
 
 class Source(BaseModel):
@@ -45,6 +46,8 @@ class QueryData(BaseModel):
     graph_sources: Optional[list[dict]] = None
     cypher_used: Optional[str] = None
     mode_used: Optional[str] = None
+    graph_entities: Optional[list[dict]] = None
+    cmms_references: Optional[list[dict]] = None
 
 
 async def _run_vector_query(question: str) -> dict:
@@ -64,6 +67,11 @@ async def _run_hybrid_query(question: str) -> dict:
     return await hybrid_pipeline.query(question)
 
 
+async def _run_graphrag_query(question: str) -> dict:
+    graphrag_pipeline = get_graphrag_pipeline()
+    return await graphrag_pipeline.query(question)
+
+
 def _resolve_mode(question: str, mode: str) -> str:
     if mode != "auto":
         return mode
@@ -73,6 +81,7 @@ def _resolve_mode(question: str, mode: str) -> str:
         "document_search": "vector",
         "structured_query": "graph",
         "hybrid": "hybrid",
+        "graphrag": "graphrag",
         "general": "vector",
     }
     return mode_map.get(intent, "vector")
@@ -103,6 +112,8 @@ async def query_documents(request: QueryRequest):
             result = await _run_graph_query(request.question)
         elif mode == "hybrid":
             result = await _run_hybrid_query(request.question)
+        elif mode == "graphrag":
+            result = await _run_graphrag_query(request.question)
         else:
             result = await _run_vector_query(request.question)
 
@@ -134,6 +145,8 @@ async def query_documents(request: QueryRequest):
             graph_sources=result.get("graph_sources"),
             cypher_used=result.get("cypher_used"),
             mode_used=result.get("mode_used", mode),
+            graph_entities=result.get("graph_entities"),
+            cmms_references=result.get("cmms_references"),
         )
 
         return SuccessResponse.create(
@@ -224,4 +237,40 @@ async def query_hybrid(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# import asyncio is at top of file
+@router.post("/query/graphrag")
+async def query_graphrag(request: QueryRequest):
+    logger.info(f"Received GraphRAG query: {request.question[:100]}...")
+
+    if not request.question or len(request.question.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    try:
+        graphrag_pipeline = get_graphrag_pipeline()
+        result = await graphrag_pipeline.query(request.question)
+
+        sources = [
+            Source(
+                document_id=src.get("document_id", "unknown"),
+                filename=src.get("filename", "Unknown"),
+                chunk_index=src.get("chunk_index", 0),
+                similarity_score=src.get("similarity_score", 0.0),
+                preview_text=src.get("preview_text", ""),
+            )
+            for src in result.get("sources", [])
+        ]
+
+        data = QueryData(
+            answer=result["answer"],
+            sources=sources,
+            graph_entities=result.get("graph_entities"),
+            cmms_references=result.get("cmms_references"),
+            mode_used="graphrag",
+        )
+
+        return SuccessResponse.create(
+            data=data, status_code=200, details="GraphRAG query processed successfully"
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing GraphRAG query: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

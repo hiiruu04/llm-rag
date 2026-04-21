@@ -130,14 +130,14 @@ role_task = Table(
     UniqueConstraint("role_id", "task_id"),
 )
 
-# Action <-> Competence (many-to-many)
-action_competence = Table(
-    "action_competence",
+# MaintenanceSchedule <-> Competence (many-to-many)
+maintenance_competence = Table(
+    "maintenance_competence",
     Base.metadata,
     Column(
-        "action_id",
+        "maintenance_schedule_id",
         UUID(as_uuid=True),
-        ForeignKey("actions.id", ondelete="CASCADE"),
+        ForeignKey("maintenance_schedules.id", ondelete="CASCADE"),
         nullable=False,
     ),
     Column(
@@ -146,7 +146,7 @@ action_competence = Table(
         ForeignKey("competences.id", ondelete="CASCADE"),
         nullable=False,
     ),
-    UniqueConstraint("action_id", "competence_id"),
+    UniqueConstraint("maintenance_schedule_id", "competence_id"),
 )
 
 # Worker <-> Shift (many-to-many)
@@ -166,6 +166,44 @@ worker_shift = Table(
         nullable=False,
     ),
     UniqueConstraint("worker_id", "shift_id"),
+)
+
+# Task <-> Worker (many-to-many)
+task_worker = Table(
+    "task_worker",
+    Base.metadata,
+    Column(
+        "task_id",
+        UUID(as_uuid=True),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "worker_id",
+        UUID(as_uuid=True),
+        ForeignKey("workers.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    UniqueConstraint("task_id", "worker_id"),
+)
+
+# Level <-> Competence (many-to-many)
+level_competence = Table(
+    "level_competence",
+    Base.metadata,
+    Column(
+        "level_id",
+        UUID(as_uuid=True),
+        ForeignKey("levels.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "competence_id",
+        UUID(as_uuid=True),
+        ForeignKey("competences.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    UniqueConstraint("level_id", "competence_id"),
 )
 
 # Asset(=Equipment) <-> System (many-to-many)

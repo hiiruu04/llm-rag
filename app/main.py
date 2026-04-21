@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.api.routes import (
-    actions,
     aggregates,
     assets,
     causes,
@@ -72,7 +71,6 @@ app.include_router(roles.router)
 app.include_router(competences.router)
 app.include_router(levels.router)
 app.include_router(tasks.router)
-app.include_router(actions.router)
 app.include_router(causes.router)
 app.include_router(materials.router)
 app.include_router(shifts.router)

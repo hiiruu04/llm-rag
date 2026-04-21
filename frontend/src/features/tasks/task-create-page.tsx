@@ -5,14 +5,21 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCreateTask } from "@/api/tasks";
+import { useMaintenanceSchedules } from "@/api/maintenance";
+import { useShifts } from "@/api/shifts";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   description: z.string().optional(),
-  task_type: z.enum(["general", "inspection", "repair", "installation", "calibration"] as const, { required_error: "Task type is required" }),
+  task_type: z.enum(["general", "inspection", "repair", "installation", "calibration"] as const),
   status: z.enum(["pending", "in_progress", "completed", "cancelled"] as const).optional(),
-  estimated_duration_hours: z.coerce.number().min(0).optional(),
+  estimated_duration_hours: z.number().min(0).optional(),
   doc_link: z.string().optional(),
+  maintenance_schedule_id: z.string().min(1, "Maintenance schedule is required"),
+  shift_id: z.string().optional(),
+  assigned_to: z.string().max(255).optional(),
+  action_type: z.enum(["safety", "preparation", "inspection", "repair", "verification", "documentation", "standard"] as const).optional(),
+  sequence_order: z.number().int().min(0).optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -20,10 +27,12 @@ type Form = z.infer<typeof schema>;
 export default function TaskCreatePage() {
   const navigate = useNavigate();
   const create = useCreateTask();
+  const { data: schedulesData } = useMaintenanceSchedules({ per_page: 100 });
+  const { data: shiftsData } = useShifts({ per_page: 100 });
 
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
-    defaultValues: { status: "pending" },
+    defaultValues: { status: "pending", action_type: "standard", sequence_order: 0 },
   });
 
   const onSubmit = (data: Form) => {
@@ -70,6 +79,49 @@ export default function TaskCreatePage() {
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Maintenance Schedule *</label>
+          <select {...register("maintenance_schedule_id")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">Select schedule...</option>
+            {schedulesData?.data.map((s) => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </select>
+          {errors.maintenance_schedule_id && <p className="mt-1 text-xs text-destructive">{errors.maintenance_schedule_id.message}</p>}
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Shift</label>
+            <select {...register("shift_id")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="">None</option>
+              {shiftsData?.data.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Assigned To</label>
+            <input {...register("assigned_to")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Action Type</label>
+            <select {...register("action_type")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="standard">Standard</option>
+              <option value="safety">Safety</option>
+              <option value="preparation">Preparation</option>
+              <option value="inspection">Inspection</option>
+              <option value="repair">Repair</option>
+              <option value="verification">Verification</option>
+              <option value="documentation">Documentation</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Sequence Order</label>
+            <input type="number" {...register("sequence_order", { valueAsNumber: true })} min={0} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">

@@ -8,6 +8,10 @@ export interface Worker {
   email: string | null;
   phone: string | null;
   status: WorkerStatus;
+  level_id: string | null;
+  level_name: string | null;
+  role_id: string | null;
+  role_name: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -18,6 +22,7 @@ export interface WorkerCreate {
   email?: string;
   phone?: string;
   status?: WorkerStatus;
+  level_id?: string;
 }
 
 export interface WorkerUpdate {
@@ -26,13 +31,23 @@ export interface WorkerUpdate {
   email?: string;
   phone?: string;
   status?: WorkerStatus;
+  level_id?: string;
 }
 
 // ── Roles ───────────────────────────────────────────────
+export interface LevelBrief {
+  id: string;
+  name: string;
+  rank: number;
+  description: string | null;
+}
+
 export interface Role {
   id: string;
   name: string;
   description: string | null;
+  levels: LevelBrief[] | null;
+  level_count: number | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -75,6 +90,8 @@ export interface Level {
   name: string;
   rank: number;
   description: string | null;
+  role_id: string | null;
+  role_name: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -83,12 +100,14 @@ export interface LevelCreate {
   name: string;
   rank: number;
   description?: string;
+  role_id?: string;
 }
 
 export interface LevelUpdate {
   name?: string;
   rank?: number;
   description?: string;
+  role_id?: string;
 }
 
 // ── Tasks ───────────────────────────────────────────────
@@ -103,6 +122,11 @@ export interface Task {
   status: TaskStatus;
   estimated_duration_hours: number | null;
   doc_link: string | null;
+  maintenance_schedule_id: string;
+  shift_id: string | null;
+  assigned_to: string | null;
+  action_type: string;
+  sequence_order: number;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -114,6 +138,11 @@ export interface TaskCreate {
   status?: TaskStatus;
   estimated_duration_hours?: number;
   doc_link?: string;
+  maintenance_schedule_id: string;
+  shift_id?: string;
+  assigned_to?: string;
+  action_type?: string;
+  sequence_order?: number;
 }
 
 export interface TaskUpdate {
@@ -123,6 +152,11 @@ export interface TaskUpdate {
   status?: TaskStatus;
   estimated_duration_hours?: number;
   doc_link?: string;
+  maintenance_schedule_id?: string;
+  shift_id?: string;
+  assigned_to?: string;
+  action_type?: string;
+  sequence_order?: number;
 }
 
 export interface TaskCompetenceAdd {
@@ -133,31 +167,6 @@ export interface TaskCompetenceAdd {
 export interface TaskMaterialAdd {
   material_id: string;
   quantity: number;
-}
-
-// ── Actions ─────────────────────────────────────────────
-export interface Action {
-  id: string;
-  name: string;
-  description: string | null;
-  action_type: string | null;
-  sequence_order: number | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-export interface ActionCreate {
-  name: string;
-  description?: string;
-  action_type?: string;
-  sequence_order?: number;
-}
-
-export interface ActionUpdate {
-  name?: string;
-  description?: string;
-  action_type?: string;
-  sequence_order?: number;
 }
 
 // ── Causes ──────────────────────────────────────────────
@@ -195,6 +204,7 @@ export interface Material {
   description: string | null;
   quantity_in_stock: number | null;
   unit: string | null;
+  order_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -205,6 +215,7 @@ export interface MaterialCreate {
   description?: string;
   quantity_in_stock?: number;
   unit?: string;
+  order_id?: string;
 }
 
 export interface MaterialUpdate {
@@ -213,6 +224,7 @@ export interface MaterialUpdate {
   description?: string;
   quantity_in_stock?: number;
   unit?: string;
+  order_id?: string;
 }
 
 // ── Shifts ──────────────────────────────────────────────
@@ -247,8 +259,12 @@ export type DownEventStatus = "active" | "resolved";
 export interface DownEvent {
   id: string;
   asset_id: string | null;
+  fault_id: string;
+  fault_name: string | null;
+  maintenance_schedule_id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
   downtime_minutes: number | null;
-  description: string | null;
   severity: DownEventSeverity | null;
   status: DownEventStatus | null;
   created_at: string | null;
@@ -257,16 +273,18 @@ export interface DownEvent {
 
 export interface DownEventCreate {
   asset_id?: string;
+  fault_id: string;
+  maintenance_schedule_id?: string;
   downtime_minutes?: number;
-  description?: string;
   severity?: DownEventSeverity;
   status?: DownEventStatus;
 }
 
 export interface DownEventUpdate {
   asset_id?: string;
+  fault_id?: string;
+  maintenance_schedule_id?: string;
   downtime_minutes?: number;
-  description?: string;
   severity?: DownEventSeverity;
   status?: DownEventStatus;
 }
@@ -293,6 +311,7 @@ export interface Order {
   status: OrderStatus | null;
   priority: OrderPriority | null;
   requested_date: string | null;
+  maintenance_schedule_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -305,6 +324,7 @@ export interface OrderCreate {
   status?: OrderStatus;
   priority?: OrderPriority;
   requested_date?: string;
+  maintenance_schedule_id?: string;
 }
 
 export interface OrderUpdate {
@@ -315,6 +335,7 @@ export interface OrderUpdate {
   status?: OrderStatus;
   priority?: OrderPriority;
   requested_date?: string;
+  maintenance_schedule_id?: string;
 }
 
 // ── Locations ───────────────────────────────────────────

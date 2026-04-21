@@ -40,10 +40,6 @@ const TasksPage = lazy(() => import("@/features/tasks/tasks-page"));
 const TaskDetailPage = lazy(() => import("@/features/tasks/task-detail-page"));
 const TaskCreatePage = lazy(() => import("@/features/tasks/task-create-page"));
 const TaskEditPage = lazy(() => import("@/features/tasks/task-edit-page"));
-const ActionsPage = lazy(() => import("@/features/actions/actions-page"));
-const ActionDetailPage = lazy(() => import("@/features/actions/action-detail-page"));
-const ActionCreatePage = lazy(() => import("@/features/actions/action-create-page"));
-const ActionEditPage = lazy(() => import("@/features/actions/action-edit-page"));
 const CausesPage = lazy(() => import("@/features/causes/causes-page"));
 const CauseDetailPage = lazy(() => import("@/features/causes/cause-detail-page"));
 const CauseCreatePage = lazy(() => import("@/features/causes/cause-create-page"));
@@ -136,11 +132,6 @@ export const router = (
     <Route path="/tasks/new" element={<PageSuspense><TaskCreatePage /></PageSuspense>} />
     <Route path="/tasks/:id" element={<PageSuspense><TaskDetailPage /></PageSuspense>} />
     <Route path="/tasks/:id/edit" element={<PageSuspense><TaskEditPage /></PageSuspense>} />
-    {/* Actions */}
-    <Route path="/actions" element={<PageSuspense><ActionsPage /></PageSuspense>} />
-    <Route path="/actions/new" element={<PageSuspense><ActionCreatePage /></PageSuspense>} />
-    <Route path="/actions/:id" element={<PageSuspense><ActionDetailPage /></PageSuspense>} />
-    <Route path="/actions/:id/edit" element={<PageSuspense><ActionEditPage /></PageSuspense>} />
     {/* Causes */}
     <Route path="/causes" element={<PageSuspense><CausesPage /></PageSuspense>} />
     <Route path="/causes/new" element={<PageSuspense><CauseCreatePage /></PageSuspense>} />

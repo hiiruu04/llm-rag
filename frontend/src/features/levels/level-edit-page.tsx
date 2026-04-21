@@ -7,11 +7,13 @@ import { PageHeader } from "@/components/layout/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { ErrorState } from "@/components/common/error-state";
 import { useLevel, useUpdateLevel } from "@/api/levels";
+import { useRoles } from "@/api/roles";
 
 const schema = z.object({
   name: z.string().min(1).max(255),
-  rank: z.coerce.number().int().min(0),
+  rank: z.number().int().min(0),
   description: z.string().optional(),
+  role_id: z.string().optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -20,6 +22,7 @@ export default function LevelEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: level, isLoading } = useLevel(id!);
+  const { data: rolesData } = useRoles({ per_page: 100 });
   const update = useUpdateLevel();
 
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
@@ -28,6 +31,7 @@ export default function LevelEditPage() {
       name: level.name,
       rank: level.rank,
       description: level.description ?? "",
+      role_id: level.role_id ?? "",
     } : undefined,
   });
 
@@ -51,6 +55,15 @@ export default function LevelEditPage() {
           <label className="mb-1 block text-sm font-medium">Rank *</label>
           <input type="number" {...register("rank", { valueAsNumber: true })} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
           {errors.rank && <p className="mt-1 text-xs text-destructive">{errors.rank.message}</p>}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Role</label>
+          <select {...register("role_id")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">None</option>
+            {rolesData?.data.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Description</label>

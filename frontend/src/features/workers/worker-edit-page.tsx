@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,6 +8,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { ErrorState } from "@/components/common/error-state";
 import { useWorker, useUpdateWorker } from "@/api/workers";
+import { useLevels } from "@/api/levels";
+import type { Level } from "@/types/cmms";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(255),
@@ -14,6 +17,7 @@ const schema = z.object({
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().max(50).optional(),
   status: z.enum(["active", "inactive", "on_leave"]),
+  level_id: z.string().optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -22,7 +26,22 @@ export default function WorkerEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: worker, isLoading } = useWorker(id!);
+  const { data: levelsData } = useLevels({ per_page: 100 });
   const update = useUpdateWorker();
+
+  const groupedLevels = useMemo(() => {
+    const levels = levelsData?.data ?? [];
+    const groups: Record<string, { role_id: string | null; levels: Level[] }> = {};
+    for (const level of levels) {
+      const key = level.role_name ?? "Unassigned";
+      if (!groups[key]) groups[key] = { role_id: level.role_id, levels: [] };
+      groups[key].levels.push(level);
+    }
+    for (const g of Object.values(groups)) {
+      g.levels.sort((a, b) => a.rank - b.rank);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [levelsData?.data]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
@@ -32,6 +51,7 @@ export default function WorkerEditPage() {
       email: worker.email ?? "",
       phone: worker.phone ?? "",
       status: worker.status,
+      level_id: worker.level_id ?? "",
     } : undefined,
   });
 
@@ -72,6 +92,19 @@ export default function WorkerEditPage() {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="on_leave">On Leave</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Level</label>
+          <select {...register("level_id")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">None</option>
+            {groupedLevels.map(([roleName, group]) => (
+              <optgroup key={roleName} label={roleName}>
+                {group.levels.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name} (Rank {l.rank})</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </div>
         <div className="flex gap-3 pt-4">

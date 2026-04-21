@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -12,9 +12,6 @@ class MaintenanceSchedule(Base):
     asset_id = Column(
         UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), nullable=False
     )
-    fault_id = Column(
-        UUID(as_uuid=True), ForeignKey("faults.id", ondelete="SET NULL"), nullable=True
-    )
     title = Column(String(255), nullable=False)
     description = Column(Text)
     maintenance_type = Column(String(20), nullable=False, server_default="preventive")
@@ -22,7 +19,6 @@ class MaintenanceSchedule(Base):
     priority = Column(String(20), nullable=False, server_default="medium")
     scheduled_date = Column(DateTime(timezone=True), nullable=False)
     completed_date = Column(DateTime(timezone=True))
-    assigned_to = Column(String(255))
     recurrence = Column(String(20), nullable=False, server_default="none")
     estimated_duration_hours = Column(Float)
     notes = Column(Text)
@@ -32,13 +28,14 @@ class MaintenanceSchedule(Base):
     )
 
     asset = relationship("Asset", back_populates="maintenance_schedules")
-    fault = relationship("Fault")
+    tasks = relationship("Task", back_populates="maintenance_schedule", cascade="all, delete-orphan")
+    down_events = relationship("DownEvent", back_populates="maintenance_schedule")
+    order = relationship("Order", back_populates="maintenance_schedule", uselist=False)
 
     def to_dict(self) -> dict:
         return {
             "id": str(self.id),
             "asset_id": str(self.asset_id),
-            "fault_id": str(self.fault_id) if self.fault_id else None,
             "title": self.title,
             "description": self.description,
             "maintenance_type": self.maintenance_type,
@@ -46,7 +43,6 @@ class MaintenanceSchedule(Base):
             "priority": self.priority,
             "scheduled_date": self.scheduled_date.isoformat() if self.scheduled_date else None,
             "completed_date": self.completed_date.isoformat() if self.completed_date else None,
-            "assigned_to": self.assigned_to,
             "recurrence": self.recurrence,
             "estimated_duration_hours": self.estimated_duration_hours,
             "notes": self.notes,

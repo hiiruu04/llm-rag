@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from loguru import logger
@@ -7,6 +8,14 @@ from app.core.neo4j import get_neo4j_driver
 
 # CMMS node labels to search for entity linking
 CMMS_LABELS = ["Asset", "Fault", "Sensor", "Location", "Worker", "Task", "Material"]
+
+# Lucene special characters that must be escaped in fulltext search queries
+_LUCENE_SPECIAL_CHARS = re.compile(r'[+\-&|!(){}\[\]^"~*?:\\/]')
+
+
+def _escape_lucene_query(term: str) -> str:
+    """Escape Lucene special characters so the term is treated as a literal."""
+    return _LUCENE_SPECIAL_CHARS.sub(r'\\\g<0>', term)
 
 
 class EntityLinkingService:
@@ -59,7 +68,7 @@ class EntityLinkingService:
                     "RETURN node.pg_id AS pg_id, node.name AS name, "
                     "labels(node)[0] AS label, score",
                     index_name=index_name,
-                    search_term=name,
+                    search_term=_escape_lucene_query(name),
                 )
                 records = await result.data()
                 if records and records[0]["score"] > 0.5:

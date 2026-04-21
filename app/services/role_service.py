@@ -3,6 +3,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.role import Role
 from app.models.schemas import RoleCreate, RoleUpdate
@@ -17,7 +18,9 @@ async def create_role(db: AsyncSession, data: RoleCreate) -> Role:
 
 
 async def get_role(db: AsyncSession, role_id: UUID) -> Optional[Role]:
-    result = await db.execute(select(Role).where(Role.id == role_id))
+    result = await db.execute(
+        select(Role).where(Role.id == role_id).options(selectinload(Role.levels))
+    )
     return result.scalar_one_or_none()
 
 

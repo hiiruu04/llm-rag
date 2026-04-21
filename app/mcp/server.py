@@ -25,6 +25,7 @@ def create_mcp_app():
     import app.mcp.resources.graph_resources  # noqa: F401
     import app.mcp.resources.maintenance_resources  # noqa: F401
     import app.mcp.resources.sensor_resources  # noqa: F401
+    import app.mcp.tools.agent_tools  # noqa: F401
     import app.mcp.tools.asset_tools  # noqa: F401
     import app.mcp.tools.fault_tools  # noqa: F401
     import app.mcp.tools.knowledge_graph_tools  # noqa: F401

@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/common/error-state";
 import { StatusBadge } from "@/components/common/status-badge";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useDownEvent, useDeleteDownEvent } from "@/api/down-events";
+import { useFault } from "@/api/faults";
 
 export default function DownEventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export default function DownEventDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data: downEvent, isLoading, isError, error, refetch } = useDownEvent(id!);
+  const { data: fault } = useFault(downEvent?.fault_id ?? "");
   const deleteMutation = useDeleteDownEvent();
 
   if (isLoading) return <LoadingState />;
@@ -29,7 +31,7 @@ export default function DownEventDetailPage() {
   return (
     <>
       <PageHeader
-        title={downEvent.description ?? "Down Event"}
+        title={downEvent.fault_name ?? "Down Event"}
         description={`Severity: ${downEvent.severity ?? "-"} | Status: ${downEvent.status ?? "-"}`}
         actions={
           <div className="flex gap-2">
@@ -44,19 +46,20 @@ export default function DownEventDetailPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <DetailCard label="Description" value={downEvent.description ?? "-"} />
         <DetailCard label="Asset ID" value={downEvent.asset_id ?? "-"} />
+        <DetailCard label="Fault" value={fault ? `${fault.code} — ${fault.name}` : "None"} />
         <DetailCard label="Severity" value={<StatusBadge value={downEvent.severity ?? "low"} />} />
         <DetailCard label="Status" value={<StatusBadge value={downEvent.status ?? "active"} />} />
+        <DetailCard label="Started" value={downEvent.started_at ? format(new Date(downEvent.started_at), "PPpp") : "-"} />
+        <DetailCard label="Ended" value={downEvent.ended_at ? format(new Date(downEvent.ended_at), "PPpp") : "-"} />
         <DetailCard label="Downtime (mins)" value={downEvent.downtime_minutes?.toString() ?? "-"} />
         <DetailCard label="Created" value={downEvent.created_at ? format(new Date(downEvent.created_at), "PPpp") : "-"} />
-        <DetailCard label="Updated" value={downEvent.updated_at ? format(new Date(downEvent.updated_at), "PPpp") : "-"} />
       </div>
 
       <ConfirmDialog
         open={deleteOpen}
         title="Delete Down Event"
-        description={`Are you sure you want to delete "${downEvent.description ?? "this down event"}"?`}
+        description={`Are you sure you want to delete this down event?`}
         variant="destructive"
         confirmLabel="Delete"
         onConfirm={handleDelete}

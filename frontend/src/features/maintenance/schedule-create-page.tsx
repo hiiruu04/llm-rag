@@ -12,8 +12,6 @@ const schema = z.object({
   maintenance_type: z.enum(["preventive", "corrective", "predictive"]),
   priority: z.enum(["low", "medium", "high", "critical"]),
   scheduled_date: z.string().min(1, "Scheduled date is required"),
-  fault_id: z.string().optional(),
-  assigned_to: z.string().optional(),
   recurrence: z.enum(["none", "daily", "weekly", "monthly", "quarterly", "yearly"]),
   estimated_duration_hours: z.string().optional(),
   notes: z.string().optional(),
@@ -93,15 +91,9 @@ export default function ScheduleCreatePage() {
             </select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Assigned To</label>
-            <input {...register("assigned_to")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Duration (hours)</label>
-            <input type="number" step="0.5" {...register("estimated_duration_hours")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
-          </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Duration (hours)</label>
+          <input type="number" step="0.5" {...register("estimated_duration_hours")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Notes</label>

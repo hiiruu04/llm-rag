@@ -1,5 +1,6 @@
-from sqlalchemy import Column, DateTime, Float, String, Text, func
+from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -13,10 +14,17 @@ class Material(Base):
     description = Column(Text)
     quantity_in_stock = Column(Float, nullable=False, default=0.0)
     unit = Column(String(50))
+    order_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("orders.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    order = relationship("Order", back_populates="materials")
 
     def to_dict(self) -> dict:
         return {
@@ -26,6 +34,7 @@ class Material(Base):
             "description": self.description,
             "quantity_in_stock": self.quantity_in_stock,
             "unit": self.unit,
+            "order_id": str(self.order_id) if self.order_id else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

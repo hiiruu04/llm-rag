@@ -8,7 +8,6 @@ from alembic import context
 from app.core.config import settings
 from app.core.database import Base
 from app.models import (  # noqa: F401
-    Action,
     Aggregate,
     Asset,
     Cause,
@@ -28,7 +27,7 @@ from app.models import (  # noqa: F401
     System,
     Task,
     Worker,
-    action_competence,
+    maintenance_competence,
     asset_location,
     asset_system,
     asset_worker_assignment,

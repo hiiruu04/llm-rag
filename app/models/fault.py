@@ -55,6 +55,7 @@ class Fault(Base):
     __table_args__ = (UniqueConstraint("asset_id", "code"),)
 
     asset = relationship("Asset", back_populates="faults")
+    down_events = relationship("DownEvent", back_populates="fault")
 
     def to_dict(self) -> dict:
         return {

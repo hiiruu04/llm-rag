@@ -8,6 +8,9 @@ from app.core.config import settings
 from app.core.embeddings import get_embedding_service
 from app.core.neo4j import get_neo4j_driver
 from app.core.vector_store import get_vector_store
+from app.services.cypher_generator import get_cypher_generator
+from app.services.cypher_templates import get_template
+from app.services.entity_extractor import get_entity_extractor
 
 GRAPHRAG_PROMPT = """\
 You are a CMMS analyst assistant with access to both document passages and \
@@ -31,6 +34,18 @@ Instructions:
 3. Use CMMS references to link document knowledge to known assets, faults, or systems.
 4. Cite which source(s) you used for each part of your answer.
 5. Be concise but thorough.
+
+Answer:"""
+
+GRAPH_FALLBACK_PROMPT = """\
+You are a CMMS analyst assistant. Answer the user's question based on \
+the knowledge graph query results below.
+Format your answer with structured information.
+
+--- KNOWLEDGE GRAPH RESULTS ---
+{graph_context}
+
+Question: {question}
 
 Answer:"""
 
@@ -69,7 +84,18 @@ WITH entities, chunks, relationships, neighbors,
        cmms_pg_id: cmms.pg_id
      }) AS cmms_refs
 
-RETURN entities, chunks, relationships, neighbors, cmms_refs
+// Step 5: Get direct CMMS -> DocumentChunk links
+UNWIND chunks AS ch
+OPTIONAL MATCH (cmms_direct)-[:HAS_DOCUMENT]->(ch)
+WHERE cmms_direct IS NOT NULL
+WITH entities, chunks, relationships, neighbors, cmms_refs,
+     collect(DISTINCT {
+       chunk_id: ch.chunk_id,
+       cmms_label: labels(cmms_direct)[0],
+       cmms_name: cmms_direct.name,
+       cmms_pg_id: cmms_direct.pg_id
+     }) AS direct_cmms_refs
+RETURN entities, chunks, relationships, neighbors, cmms_refs, direct_cmms_refs
 """
 
 
@@ -83,40 +109,75 @@ class GraphRAGPipeline:
         self.embedding_service = get_embedding_service()
 
     async def query(self, question: str) -> dict:
-        logger.info(f"GraphRAG pipeline query: {question[:100]}...")
+        logger.info("GraphRAG pipeline query: {}...", question[:100])
+        logger.debug("[Step 1] Embedding query and searching vector store")
+        logger.debug(
+            "[Step 1] Vector store config: collection={}, limit={}, threshold={}",
+            settings.qdrant_collection_name,
+            settings.default_top_k,
+            settings.similarity_threshold,
+        )
 
         # Step 1: Embed query and search Qdrant for relevant chunks
         query_embedding = await asyncio.to_thread(
             self.embedding_service.get_text_embedding, question
         )
+        logger.debug("[Step 1] Query embedding generated: dim={}", len(query_embedding))
+
         retrieved_docs = await asyncio.to_thread(
             self.vector_store.search,
             query_embedding=query_embedding,
             limit=settings.default_top_k,
             score_threshold=settings.similarity_threshold,
         )
+        logger.debug("[Step 1] Vector search returned {} docs", len(retrieved_docs))
+        for i, doc in enumerate(retrieved_docs):
+            logger.debug(
+                "[Step 1]   doc[{}]: id={} score={} file={}",
+                i,
+                doc["id"],
+                doc["similarity_score"],
+                doc["metadata"].get("file_name", "?"),
+            )
 
         if not retrieved_docs:
-            return {
-                "answer": "I couldn't find any relevant information to answer your question.",
-                "sources": [],
-                "graph_entities": [],
-                "cmms_references": [],
-                "mode_used": "graphrag",
-            }
+            logger.info("[Fallback] No vector results, falling back to direct graph query")
+            return await self._fallback_graph_query(question)
 
         # Step 2: Extract chunk IDs (Qdrant point IDs)
         chunk_ids = [doc["id"] for doc in retrieved_docs]
+        logger.debug("[Step 2] Extracted chunk IDs: {}", chunk_ids)
 
         # Step 3: Query Neo4j graph around those chunk IDs
+        logger.debug("[Step 3] Querying Neo4j graph context for chunk IDs")
         graph_data = await self._query_graph_context(chunk_ids)
+        logger.debug(
+            "[Step 3] Graph context retrieved: entities={} relationships={} "
+            "neighbors={} cmms_refs={} direct_cmms_refs={}",
+            len(graph_data.get("entities", [])),
+            len(graph_data.get("relationships", [])),
+            len(graph_data.get("neighbors", [])),
+            len(graph_data.get("cmms_refs", [])),
+            len(graph_data.get("direct_cmms_refs", [])),
+        )
 
         # Step 4: Format all contexts
+        logger.debug("[Step 4] Formatting contexts for LLM prompt")
         doc_context = self._format_doc_context(retrieved_docs)
         graph_context = self._format_graph_context(graph_data)
-        cmms_context = self._format_cmms_context(graph_data.get("cmms_refs", []))
+        cmms_context = self._format_cmms_context(
+            graph_data.get("cmms_refs", []),
+            graph_data.get("direct_cmms_refs", []),
+        )
+        logger.debug(
+            "[Step 4] Context sizes: doc={} chars, graph={} chars, cmms={} chars",
+            len(doc_context),
+            len(graph_context),
+            len(cmms_context),
+        )
 
         # Step 5: Generate answer using LLM
+        logger.debug("[Step 5] Generating answer with LLM")
         prompt = GRAPHRAG_PROMPT.format(
             doc_context=doc_context,
             graph_context=graph_context,
@@ -132,8 +193,9 @@ class GraphRAGPipeline:
                 temperature=settings.openai_temperature,
             )
             answer = response.choices[0].message.content.strip()
+            logger.debug("[Step 5] LLM answer generated: {} chars", len(answer))
         except Exception as e:
-            logger.error(f"GraphRAG answer generation failed: {e}")
+            logger.error("[Step 5] GraphRAG answer generation failed: {}", e)
             answer = (
                 "Found relevant documents and graph data "
                 f"but couldn't generate an answer: {str(e)}"
@@ -157,12 +219,7 @@ class GraphRAGPipeline:
         graph_entities = self._extract_graph_entities(graph_data)
         cmms_references = [ref for ref in graph_data.get("cmms_refs", []) if ref.get("cmms_pg_id")]
 
-        logger.info(
-            f"GraphRAG query complete: {len(sources)} sources, "
-            f"{len(graph_entities)} entities, {len(cmms_references)} CMMS refs"
-        )
-
-        return {
+        result = {
             "answer": answer,
             "sources": sources,
             "graph_entities": graph_entities,
@@ -170,9 +227,34 @@ class GraphRAGPipeline:
             "mode_used": "graphrag",
         }
 
+        logger.debug(
+            "GraphRAG query result | mode={} | sources={} | entities={} | "
+            "cmms_refs={} | direct_cmms_refs={} | answer={}",
+            result["mode_used"],
+            len(sources),
+            len(graph_entities),
+            len(cmms_references),
+            len(graph_data.get("direct_cmms_refs", [])),
+            answer[:200],
+        )
+        logger.debug("GraphRAG sources: {}", sources)
+        logger.debug("GraphRAG graph_entities: {}", graph_entities)
+        logger.debug("GraphRAG cmms_references: {}", cmms_references)
+        logger.debug(
+            "GraphRAG direct_cmms_refs: {}",
+            graph_data.get("direct_cmms_refs", []),
+        )
+
+        return result
+
     async def _query_graph_context(self, chunk_ids: list[int]) -> dict:
         """Query Neo4j for entities, relationships, and CMMS references around chunk IDs."""
         driver = await get_neo4j_driver()
+        logger.debug(
+            "[Graph Context] Querying with chunk_ids={} (db={})",
+            chunk_ids,
+            settings.neo4j_database,
+        )
 
         try:
             async with driver.session(database=settings.neo4j_database) as session:
@@ -181,13 +263,16 @@ class GraphRAGPipeline:
                     chunk_ids=chunk_ids,
                 )
                 records = await result.data()
+                logger.debug("[Graph Context] Neo4j returned {} records", len(records))
 
                 if not records:
+                    logger.debug("[Graph Context] No records returned from Neo4j")
                     return {
                         "entities": [],
                         "relationships": [],
                         "neighbors": [],
                         "cmms_refs": [],
+                        "direct_cmms_refs": [],
                     }
 
                 record = records[0]
@@ -201,12 +286,24 @@ class GraphRAGPipeline:
                 for node in record.get("chunks", []):
                     chunks.append(dict(node))
 
+                logger.debug(
+                    "[Graph Context] Parsed: {} entities, {} chunks, "
+                    "{} relationships, {} neighbors, {} cmms_refs, {} direct_cmms_refs",
+                    len(entities),
+                    len(chunks),
+                    len(record.get("relationships", [])),
+                    len(record.get("neighbors", [])),
+                    len(record.get("cmms_refs", [])),
+                    len(record.get("direct_cmms_refs", [])),
+                )
+
                 return {
                     "entities": entities,
                     "chunks": chunks,
                     "relationships": record.get("relationships", []),
                     "neighbors": record.get("neighbors", []),
                     "cmms_refs": record.get("cmms_refs", []),
+                    "direct_cmms_refs": record.get("direct_cmms_refs", []),
                 }
 
         except Exception as e:
@@ -216,6 +313,7 @@ class GraphRAGPipeline:
                 "relationships": [],
                 "neighbors": [],
                 "cmms_refs": [],
+                "direct_cmms_refs": [],
             }
 
     def _format_doc_context(self, retrieved_docs: list[dict]) -> str:
@@ -261,19 +359,35 @@ class GraphRAGPipeline:
 
         return "\n\n".join(parts) if parts else "No graph data available."
 
-    def _format_cmms_context(self, cmms_refs: list[dict]) -> str:
-        if not cmms_refs:
+    def _format_cmms_context(self, cmms_refs: list[dict], direct_cmms_refs: list[dict]) -> str:
+        parts = []
+
+        if cmms_refs:
+            entity_parts = ["Linked CMMS records (via entity):"]
+            for ref in cmms_refs:
+                if ref.get("cmms_pg_id"):
+                    entity_parts.append(
+                        f"  - Entity '{ref.get('entity_name', '?')}' refers to "
+                        f"{ref.get('cmms_label', '?')} '{ref.get('cmms_name', '?')}' "
+                        f"(ID: {ref.get('cmms_pg_id')})"
+                    )
+            parts.append("\n".join(entity_parts))
+
+        if direct_cmms_refs:
+            direct_parts = ["Direct CMMS -> Document links:"]
+            for ref in direct_cmms_refs:
+                if ref.get("cmms_pg_id"):
+                    direct_parts.append(
+                        f"  - {ref.get('cmms_label', '?')} '{ref.get('cmms_name', '?')}' "
+                        f"(ID: {ref.get('cmms_pg_id')}) has document chunk "
+                        f"{ref.get('chunk_id')}"
+                    )
+            parts.append("\n".join(direct_parts))
+
+        if not parts:
             return "No CMMS references found."
 
-        parts = ["Linked CMMS records:"]
-        for ref in cmms_refs:
-            if ref.get("cmms_pg_id"):
-                parts.append(
-                    f"  - Entity '{ref.get('entity_name', '?')}' refers to "
-                    f"{ref.get('cmms_label', '?')} '{ref.get('cmms_name', '?')}' "
-                    f"(ID: {ref.get('cmms_pg_id')})"
-                )
-        return "\n".join(parts)
+        return "\n\n".join(parts)
 
     def _extract_graph_entities(self, graph_data: dict) -> list[dict]:
         """Extract a flat list of unique entities for the response."""
@@ -305,6 +419,155 @@ class GraphRAGPipeline:
                 )
 
         return entities
+
+    async def _fallback_graph_query(self, question: str) -> dict:
+        """Fallback: query the knowledge graph directly when vector search finds nothing."""
+        logger.debug("[Fallback Step 1] Extracting entities from question")
+        entity_extractor = get_entity_extractor()
+        cypher_generator = get_cypher_generator()
+
+        # Step 1: Extract entities from question
+        entities = entity_extractor.extract(question)
+        query_type = entities.get("query_type", "search")
+        logger.debug(
+            "[Fallback Step 1] Extracted entities: query_type={}, entities={}",
+            query_type,
+            entities,
+        )
+
+        # Step 2: Try template-based Cypher first, then LLM-generated
+        logger.debug(
+            "[Fallback Step 2] Resolving Cypher (template for '{}' then LLM fallback)",
+            query_type,
+        )
+        cypher, params = self._get_fallback_cypher(
+            query_type, entities, question, cypher_generator
+        )
+        logger.debug(
+            "[Fallback Step 2] Cypher resolved: {} | params: {}",
+            cypher,
+            params,
+        )
+        if not cypher:
+            logger.debug("[Fallback Step 2] No Cypher could be generated")
+            return {
+                "answer": "I couldn't find any relevant information to answer your question.",
+                "sources": [],
+                "graph_entities": [],
+                "cmms_references": [],
+                "mode_used": "graphrag_fallback",
+                "cypher_used": None,
+            }
+
+        # Step 3: Execute Cypher against Neo4j
+        logger.debug("[Fallback Step 3] Executing Cypher against Neo4j")
+        try:
+            results = await self._execute_fallback_cypher(cypher, params)
+            logger.debug("[Fallback Step 3] Neo4j returned {} results", len(results))
+        except Exception as e:
+            logger.error("[Fallback Step 3] Cypher execution failed: {}", e)
+            return {
+                "answer": f"Error querying the knowledge graph: {str(e)}",
+                "sources": [],
+                "graph_entities": [],
+                "cmms_references": [],
+                "mode_used": "graphrag_fallback",
+                "cypher_used": cypher,
+            }
+
+        if not results:
+            logger.debug("[Fallback Step 3] No results from graph query")
+            return {
+                "answer": "No results found in the knowledge graph for your query.",
+                "sources": [],
+                "graph_entities": [],
+                "cmms_references": [],
+                "mode_used": "graphrag_fallback",
+                "cypher_used": cypher,
+            }
+
+        # Step 4: Format and generate answer
+        logger.debug("[Fallback Step 4] Formatting results and generating answer")
+        graph_context = self._format_fallback_results(results)
+        prompt = GRAPH_FALLBACK_PROMPT.format(graph_context=graph_context, question=question)
+        logger.debug(
+            "[Fallback Step 4] Graph context ({} chars): {}",
+            len(graph_context),
+            graph_context[:500],
+        )
+
+        try:
+            response = self.llm_client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=settings.openai_max_tokens,
+                temperature=settings.openai_temperature,
+            )
+            answer = response.choices[0].message.content.strip()
+            logger.debug("[Fallback Step 4] LLM answer generated: {} chars", len(answer))
+        except Exception as e:
+            logger.error("[Fallback Step 4] Answer generation failed: {}", e)
+            answer = f"Found graph data but couldn't generate an answer: {str(e)}"
+
+        result = {
+            "answer": answer,
+            "sources": [],
+            "graph_entities": [],
+            "cmms_references": [],
+            "mode_used": "graphrag_fallback",
+            "cypher_used": cypher,
+        }
+
+        logger.debug(
+            "GraphRAG fallback result | mode={} | cypher={} | graph_results={} | answer={}",
+            result["mode_used"],
+            cypher,
+            len(results),
+            answer[:200],
+        )
+        logger.debug("GraphRAG fallback cypher_used: {}", cypher)
+        logger.debug("GraphRAG fallback graph_results: {}", results)
+
+        return result
+
+    def _get_fallback_cypher(
+        self,
+        query_type: str,
+        entities: dict,
+        question: str,
+        cypher_generator,
+    ) -> tuple:
+        """Get Cypher query: try template first, then LLM-generated."""
+        template_fn = get_template(query_type)
+        if template_fn:
+            cypher, params = template_fn(entities)
+            logger.info(f"Fallback: using template for {query_type}")
+            return cypher, params
+
+        cypher = cypher_generator.generate(question)
+        if cypher:
+            return cypher, {}
+
+        return None, {}
+
+    async def _execute_fallback_cypher(self, cypher: str, params: dict) -> list[dict]:
+        """Execute a Cypher query against Neo4j."""
+        driver = await get_neo4j_driver()
+        async with driver.session(database=settings.neo4j_database) as session:
+            result = await session.run(cypher, **params)
+            records = await result.data()
+        return records
+
+    def _format_fallback_results(self, results: list[dict]) -> str:
+        """Format graph query results into a string for the LLM prompt."""
+        parts = []
+        for i, record in enumerate(results, 1):
+            lines = [f"[Graph Result {i}]"]
+            for key, value in record.items():
+                if value is not None:
+                    lines.append(f"  {key}: {value}")
+            parts.append("\n".join(lines))
+        return "\n\n".join(parts)
 
 
 _graphrag_pipeline: Optional[GraphRAGPipeline] = None

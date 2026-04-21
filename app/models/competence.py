@@ -1,5 +1,6 @@
 from sqlalchemy import Column, DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -15,6 +16,8 @@ class Competence(Base):
     updated_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    levels = relationship("Level", secondary="level_competence", back_populates="competences")
 
     def to_dict(self) -> dict:
         return {

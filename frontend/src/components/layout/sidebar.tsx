@@ -15,7 +15,6 @@ import {
   Award,
   Layers,
   ListChecks,
-  Zap,
   Bug,
   Package,
   Clock,
@@ -60,7 +59,6 @@ const navSections = [
     label: "Task Management",
     items: [
       { to: "/tasks", icon: ListChecks, label: "Tasks" },
-      { to: "/actions", icon: Zap, label: "Actions" },
       { to: "/causes", icon: Bug, label: "Causes" },
       { to: "/materials", icon: Package, label: "Materials" },
     ],

@@ -108,6 +108,7 @@ async def list_down_events(
     severity: Optional[str] = None,
     status: Optional[str] = None,
     asset_id: Optional[str] = None,
+    maintenance_schedule_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     logger.info(f"Listing down events (page={page}, per_page={per_page})")
@@ -120,6 +121,7 @@ async def list_down_events(
             severity=severity,
             status=status,
             asset_id=asset_id,
+            maintenance_schedule_id=maintenance_schedule_id,
         )
         total_pages = math.ceil(total / per_page) if total > 0 else 0
         data = [DownEventResponse(**d.to_dict()) for d in down_events]

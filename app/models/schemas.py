@@ -165,8 +165,6 @@ class MaintenanceScheduleCreate(BaseModel):
     maintenance_type: MaintenanceType = "preventive"
     priority: MaintenancePriority = "medium"
     scheduled_date: datetime
-    fault_id: Optional[UUID] = None
-    assigned_to: Optional[str] = Field(None, max_length=255)
     recurrence: MaintenanceRecurrence = "none"
     estimated_duration_hours: Optional[float] = None
     notes: Optional[str] = None
@@ -179,8 +177,6 @@ class MaintenanceScheduleUpdate(BaseModel):
     status: Optional[MaintenanceStatus] = None
     priority: Optional[MaintenancePriority] = None
     scheduled_date: Optional[datetime] = None
-    fault_id: Optional[UUID] = None
-    assigned_to: Optional[str] = Field(None, max_length=255)
     recurrence: Optional[MaintenanceRecurrence] = None
     estimated_duration_hours: Optional[float] = None
     notes: Optional[str] = None
@@ -189,7 +185,6 @@ class MaintenanceScheduleUpdate(BaseModel):
 class MaintenanceScheduleResponse(BaseModel):
     id: UUID
     asset_id: UUID
-    fault_id: Optional[UUID]
     title: str
     description: Optional[str]
     maintenance_type: str
@@ -197,7 +192,6 @@ class MaintenanceScheduleResponse(BaseModel):
     priority: str
     scheduled_date: Optional[datetime] = None
     completed_date: Optional[datetime] = None
-    assigned_to: Optional[str]
     recurrence: str
     estimated_duration_hours: Optional[float]
     notes: Optional[str]
@@ -226,6 +220,7 @@ class WorkerCreate(BaseModel):
     email: Optional[str] = Field(None, max_length=255)
     phone: Optional[str] = Field(None, max_length=50)
     status: WorkerStatus = "active"
+    level_id: Optional[UUID] = None
 
 
 class WorkerUpdate(BaseModel):
@@ -234,6 +229,7 @@ class WorkerUpdate(BaseModel):
     email: Optional[str] = Field(None, max_length=255)
     phone: Optional[str] = Field(None, max_length=50)
     status: Optional[WorkerStatus] = None
+    level_id: Optional[UUID] = None
 
 
 class WorkerResponse(BaseModel):
@@ -243,6 +239,10 @@ class WorkerResponse(BaseModel):
     email: Optional[str]
     phone: Optional[str]
     status: str
+    level_id: Optional[UUID] = None
+    level_name: Optional[str] = None
+    role_id: Optional[UUID] = None
+    role_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -260,10 +260,19 @@ class RoleUpdate(BaseModel):
     description: Optional[str] = None
 
 
+class LevelBrief(BaseModel):
+    id: UUID
+    name: str
+    rank: int
+    description: Optional[str] = None
+
+
 class RoleResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str]
+    levels: Optional[list[LevelBrief]] = None
+    level_count: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -299,12 +308,14 @@ class LevelCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     rank: int = 0
     description: Optional[str] = None
+    role_id: Optional[UUID] = None
 
 
 class LevelUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     rank: Optional[int] = None
     description: Optional[str] = None
+    role_id: Optional[UUID] = None
 
 
 class LevelResponse(BaseModel):
@@ -312,6 +323,8 @@ class LevelResponse(BaseModel):
     name: str
     rank: int
     description: Optional[str]
+    role_id: Optional[UUID] = None
+    role_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -326,6 +339,11 @@ class TaskCreate(BaseModel):
     status: TaskStatus = "pending"
     estimated_duration_hours: Optional[float] = None
     doc_link: Optional[str] = Field(None, max_length=500)
+    maintenance_schedule_id: UUID
+    shift_id: Optional[UUID] = None
+    assigned_to: Optional[str] = Field(None, max_length=255)
+    action_type: str = Field("standard", max_length=100)
+    sequence_order: int = 0
 
 
 class TaskUpdate(BaseModel):
@@ -335,6 +353,11 @@ class TaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     estimated_duration_hours: Optional[float] = None
     doc_link: Optional[str] = Field(None, max_length=500)
+    maintenance_schedule_id: Optional[UUID] = None
+    shift_id: Optional[UUID] = None
+    assigned_to: Optional[str] = Field(None, max_length=255)
+    action_type: Optional[str] = Field(None, max_length=100)
+    sequence_order: Optional[int] = None
 
 
 class TaskResponse(BaseModel):
@@ -345,35 +368,14 @@ class TaskResponse(BaseModel):
     status: str
     estimated_duration_hours: Optional[float]
     doc_link: Optional[str]
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
-# --- Action Schemas ---
-
-
-class ActionCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    action_type: str = Field("standard", max_length=100)
-    sequence_order: int = 0
-
-
-class ActionUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    action_type: Optional[str] = Field(None, max_length=100)
-    sequence_order: Optional[int] = None
-
-
-class ActionResponse(BaseModel):
-    id: UUID
-    name: str
-    description: Optional[str]
+    maintenance_schedule_id: UUID
+    shift_id: Optional[UUID] = None
+    assigned_to: Optional[str] = None
     action_type: str
     sequence_order: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
 
 
 # --- Cause Schemas ---
@@ -412,6 +414,7 @@ class MaterialCreate(BaseModel):
     description: Optional[str] = None
     quantity_in_stock: float = 0.0
     unit: Optional[str] = Field(None, max_length=50)
+    order_id: Optional[UUID] = None
 
 
 class MaterialUpdate(BaseModel):
@@ -420,6 +423,7 @@ class MaterialUpdate(BaseModel):
     description: Optional[str] = None
     quantity_in_stock: Optional[float] = None
     unit: Optional[str] = Field(None, max_length=50)
+    order_id: Optional[UUID] = None
 
 
 class MaterialResponse(BaseModel):
@@ -429,6 +433,7 @@ class MaterialResponse(BaseModel):
     description: Optional[str]
     quantity_in_stock: float
     unit: Optional[str]
+    order_id: Optional[UUID] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -465,20 +470,22 @@ class ShiftResponse(BaseModel):
 
 class DownEventCreate(BaseModel):
     asset_id: UUID
+    fault_id: UUID
+    maintenance_schedule_id: Optional[UUID] = None
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     downtime_minutes: int = 0
-    description: Optional[str] = None
     severity: CauseSeverity = "medium"
     status: DownEventStatus = "active"
 
 
 class DownEventUpdate(BaseModel):
     asset_id: Optional[UUID] = None
+    fault_id: Optional[UUID] = None
+    maintenance_schedule_id: Optional[UUID] = None
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     downtime_minutes: Optional[int] = None
-    description: Optional[str] = None
     severity: Optional[CauseSeverity] = None
     status: Optional[DownEventStatus] = None
 
@@ -486,10 +493,12 @@ class DownEventUpdate(BaseModel):
 class DownEventResponse(BaseModel):
     id: UUID
     asset_id: UUID
+    fault_id: UUID
+    fault_name: Optional[str] = None
+    maintenance_schedule_id: Optional[UUID] = None
     started_at: Optional[datetime]
     ended_at: Optional[datetime]
     downtime_minutes: int
-    description: Optional[str]
     severity: str
     status: str
     created_at: Optional[datetime] = None
@@ -507,6 +516,7 @@ class OrderCreate(BaseModel):
     status: OrderStatus = "open"
     priority: OrderPriority = "medium"
     requested_date: Optional[datetime] = None
+    maintenance_schedule_id: Optional[UUID] = None
 
 
 class OrderUpdate(BaseModel):
@@ -517,6 +527,7 @@ class OrderUpdate(BaseModel):
     status: Optional[OrderStatus] = None
     priority: Optional[OrderPriority] = None
     requested_date: Optional[datetime] = None
+    maintenance_schedule_id: Optional[UUID] = None
 
 
 class OrderResponse(BaseModel):
@@ -528,6 +539,7 @@ class OrderResponse(BaseModel):
     status: str
     priority: str
     requested_date: Optional[datetime]
+    maintenance_schedule_id: Optional[UUID] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

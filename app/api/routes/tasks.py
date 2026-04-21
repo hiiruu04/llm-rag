@@ -65,6 +65,7 @@ async def list_tasks(
     per_page: int = Query(10, ge=1, le=100),
     status: Optional[str] = None,
     task_type: Optional[str] = None,
+    maintenance_schedule_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     logger.info(f"Listing tasks (page={page}, per_page={per_page})")
@@ -76,6 +77,7 @@ async def list_tasks(
             per_page=per_page,
             status=status,
             task_type=task_type,
+            maintenance_schedule_id=maintenance_schedule_id,
         )
         total_pages = math.ceil(total / per_page) if total > 0 else 0
         data = [TaskResponse(**t.to_dict()) for t in tasks]

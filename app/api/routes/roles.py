@@ -111,7 +111,7 @@ async def get_role(role_id: UUID, db: AsyncSession = Depends(get_db)):
         )
 
     return SuccessResponse.create(
-        data=RoleResponse(**role.to_dict()),
+        data=RoleResponse(**role.to_dict(include_levels=True)),
         status_code=200,
         details="Role retrieved",
     )

@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/common/error-state";
 import { StatusBadge } from "@/components/common/status-badge";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useOrder, useDeleteOrder } from "@/api/orders";
+import { useSchedule } from "@/api/maintenance";
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,7 @@ export default function OrderDetailPage() {
 
   const { data: order, isLoading, isError, error, refetch } = useOrder(id!);
   const deleteMutation = useDeleteOrder();
+  const { data: schedule } = useSchedule(order?.maintenance_schedule_id ?? "");
 
   if (isLoading) return <LoadingState />;
   if (isError || !order) return <ErrorState message={error?.message} onRetry={() => refetch()} />;
@@ -51,6 +53,11 @@ export default function OrderDetailPage() {
         <DetailCard label="Status" value={<StatusBadge value={order.status ?? "open"} />} />
         <DetailCard label="Priority" value={<StatusBadge value={order.priority ?? "low"} />} />
         <DetailCard label="Requested Date" value={order.requested_date ? format(new Date(order.requested_date), "PPpp") : "-"} />
+        <DetailCard label="Maintenance Schedule" value={
+          order.maintenance_schedule_id
+            ? <Link to={`/maintenance/${order.maintenance_schedule_id}`} className="text-primary hover:underline">{schedule?.title ?? order.maintenance_schedule_id}</Link>
+            : "-"
+        } />
         <DetailCard label="Created" value={order.created_at ? format(new Date(order.created_at), "PPpp") : "-"} />
         <DetailCard label="Updated" value={order.updated_at ? format(new Date(order.updated_at), "PPpp") : "-"} />
       </div>

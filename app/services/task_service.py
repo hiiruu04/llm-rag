@@ -4,11 +4,17 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.schemas import TaskCreate, TaskUpdate
 from app.models.task import Task
 
 
 async def create_task(db: AsyncSession, data: TaskCreate) -> Task:
+    # Validate maintenance_schedule_id exists
+    schedule = await db.get(MaintenanceSchedule, data.maintenance_schedule_id)
+    if not schedule:
+        raise ValueError(f"MaintenanceSchedule {data.maintenance_schedule_id} does not exist")
+
     task = Task(**data.model_dump())
     db.add(task)
     await db.commit()
@@ -27,6 +33,7 @@ async def list_tasks(
     per_page: int = 10,
     status: Optional[str] = None,
     task_type: Optional[str] = None,
+    maintenance_schedule_id: Optional[str] = None,
 ) -> tuple[list[Task], int]:
     query = select(Task)
     count_query = select(func.count(Task.id))
@@ -37,6 +44,9 @@ async def list_tasks(
     if task_type:
         query = query.where(Task.task_type == task_type)
         count_query = count_query.where(Task.task_type == task_type)
+    if maintenance_schedule_id:
+        query = query.where(Task.maintenance_schedule_id == UUID(maintenance_schedule_id))
+        count_query = count_query.where(Task.maintenance_schedule_id == UUID(maintenance_schedule_id))
 
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0

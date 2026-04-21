@@ -8,6 +8,7 @@ export interface QueryHistoryEntry {
   mode: QueryMode;
   answer: string;
   modeUsed: string | null;
+  agentUsed: string | null;
   timestamp: number;
 }
 

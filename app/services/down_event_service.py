@@ -3,12 +3,19 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.down_event import DownEvent
+from app.models.fault import Fault
 from app.models.schemas import DownEventCreate, DownEventUpdate
 
 
 async def create_down_event(db: AsyncSession, data: DownEventCreate) -> DownEvent:
+    # Validate fault_id exists
+    fault = await db.get(Fault, data.fault_id)
+    if not fault:
+        raise ValueError(f"Fault {data.fault_id} does not exist")
+
     down_event = DownEvent(**data.model_dump())
     db.add(down_event)
     await db.commit()
@@ -17,7 +24,7 @@ async def create_down_event(db: AsyncSession, data: DownEventCreate) -> DownEven
 
 
 async def get_down_event(db: AsyncSession, down_event_id: UUID) -> Optional[DownEvent]:
-    result = await db.execute(select(DownEvent).where(DownEvent.id == down_event_id))
+    result = await db.execute(select(DownEvent).where(DownEvent.id == down_event_id).options(selectinload(DownEvent.fault)))
     return result.scalar_one_or_none()
 
 
@@ -28,8 +35,9 @@ async def list_down_events(
     severity: Optional[str] = None,
     status: Optional[str] = None,
     asset_id: Optional[str] = None,
+    maintenance_schedule_id: Optional[str] = None,
 ) -> tuple[list[DownEvent], int]:
-    query = select(DownEvent)
+    query = select(DownEvent).options(selectinload(DownEvent.fault))
     count_query = select(func.count(DownEvent.id))
 
     if severity:
@@ -41,6 +49,9 @@ async def list_down_events(
     if asset_id:
         query = query.where(DownEvent.asset_id == UUID(asset_id))
         count_query = count_query.where(DownEvent.asset_id == UUID(asset_id))
+    if maintenance_schedule_id:
+        query = query.where(DownEvent.maintenance_schedule_id == UUID(maintenance_schedule_id))
+        count_query = count_query.where(DownEvent.maintenance_schedule_id == UUID(maintenance_schedule_id))
 
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0

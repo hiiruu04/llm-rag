@@ -48,6 +48,16 @@ function WorkerDetails({ worker }: { worker: Worker }) {
       <DetailCard label="Email" value={worker.email ?? "-"} />
       <DetailCard label="Phone" value={worker.phone ?? "-"} />
       <DetailCard label="Status" value={<StatusBadge value={worker.status} />} />
+      <DetailCard label="Level" value={
+        worker.level_name ? (
+          <Link to={`/levels/${worker.level_id}`} className="text-primary hover:underline">{worker.level_name}</Link>
+        ) : "-"
+      } />
+      <DetailCard label="Role" value={
+        worker.role_name ? (
+          <Link to={`/roles/${worker.role_id}`} className="text-primary hover:underline">{worker.role_name}</Link>
+        ) : "-"
+      } />
       <DetailCard label="Created" value={worker.created_at ? format(new Date(worker.created_at), "PPpp") : "-"} />
       <DetailCard label="Updated" value={worker.updated_at ? format(new Date(worker.updated_at), "PPpp") : "-"} />
     </div>

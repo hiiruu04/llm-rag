@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.models import Pagination, SuccessResponse
 from app.core.database import get_db
 from app.models.schemas import (
+    CompetenceResponse,
     LevelCreate,
     LevelResponse,
     LevelUpdate,
@@ -52,6 +53,7 @@ async def list_levels(
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
     name: Optional[str] = None,
+    role_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
 ):
     logger.info(f"Listing levels (page={page}, per_page={per_page})")
@@ -62,6 +64,7 @@ async def list_levels(
             page=page,
             per_page=per_page,
             name=name,
+            role_id=role_id,
         )
         total_pages = math.ceil(total / per_page) if total > 0 else 0
         data = [LevelResponse(**level.to_dict()) for level in levels]
@@ -114,6 +117,32 @@ async def get_level(level_id: UUID, db: AsyncSession = Depends(get_db)):
         data=LevelResponse(**level.to_dict()),
         status_code=200,
         details="Level retrieved",
+    )
+
+
+@router.get("/levels/{level_id}/competences")
+async def get_level_competences(level_id: UUID, db: AsyncSession = Depends(get_db)):
+    logger.info(f"Getting competences for level {level_id}")
+
+    level = await level_service.get_level(db, level_id)
+    if not level:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "data": None,
+                "meta": {
+                    "status_code": 404,
+                    "details": "Level not found",
+                    "errors": [f"Level {level_id} does not exist"],
+                },
+            },
+        )
+
+    data = [CompetenceResponse(**c.to_dict()) for c in level.competences]
+    return SuccessResponse.create(
+        data=data,
+        status_code=200,
+        details=f"Found {len(data)} competences",
     )
 
 

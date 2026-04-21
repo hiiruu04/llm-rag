@@ -5,8 +5,9 @@ import { format } from "date-fns";
 import { PageHeader } from "@/components/layout/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { ErrorState } from "@/components/common/error-state";
+import { DataTable } from "@/components/common/data-table";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { useLevel, useDeleteLevel } from "@/api/levels";
+import { useLevel, useLevelCompetences, useDeleteLevel } from "@/api/levels";
 
 export default function LevelDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -45,10 +46,17 @@ export default function LevelDetailPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <DetailCard label="Name" value={level.name} />
         <DetailCard label="Rank" value={level.rank} />
+        <DetailCard label="Role" value={
+          level.role_name ? (
+            <Link to={`/roles/${level.role_id}`} className="text-primary hover:underline">{level.role_name}</Link>
+          ) : "-"
+        } />
         <DetailCard label="Description" value={level.description ?? "-"} />
         <DetailCard label="Created" value={level.created_at ? format(new Date(level.created_at), "PPpp") : "-"} />
         <DetailCard label="Updated" value={level.updated_at ? format(new Date(level.updated_at), "PPpp") : "-"} />
       </div>
+
+      <LevelCompetencesSection levelId={id!} />
 
       <ConfirmDialog
         open={deleteOpen}
@@ -60,6 +68,35 @@ export default function LevelDetailPage() {
         onCancel={() => setDeleteOpen(false)}
       />
     </>
+  );
+}
+
+function LevelCompetencesSection({ levelId }: { levelId: string }) {
+  const { data, isLoading } = useLevelCompetences(levelId);
+
+  if (isLoading) return <LoadingState rows={3} />;
+
+  const competences = data ?? [];
+
+  return (
+    <div className="mt-8">
+      <h3 className="mb-4 text-lg font-semibold">Competences</h3>
+      {competences.length > 0 ? (
+        <DataTable<{ id: string; name: string; category: string | null; description: string | null }>
+          data={competences}
+          keyExtractor={(c) => c.id}
+          columns={[
+            { header: "Name", accessor: (c) => (
+              <Link to={`/competences/${c.id}`} className="hover:underline">{c.name}</Link>
+            )},
+            { header: "Category", accessor: (c) => c.category ?? "-" },
+            { header: "Description", accessor: (c) => c.description ?? "-" },
+          ]}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">No competences associated with this level.</p>
+      )}
+    </div>
   );
 }
 

@@ -8,7 +8,6 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import async_session_factory
 from app.core.neo4j import get_neo4j_driver
-from app.models.action import Action
 from app.models.aggregate import Aggregate
 from app.models.asset import Asset
 from app.models.cause import Cause
@@ -16,17 +15,19 @@ from app.models.competence import Competence
 from app.models.down_event import DownEvent
 from app.models.fault import Fault, fault_cause_effect
 from app.models.graph_associations import (
-    action_competence,
     asset_location,
     asset_system,
     asset_worker_assignment,
     cause_role,
     down_event_cause,
+    level_competence,
+    maintenance_competence,
     order_asset,
     role_task,
     system_aggregate,
     task_competence,
     task_material,
+    task_worker,
     worker_competence,
     worker_shift,
 )
@@ -176,7 +177,6 @@ class GraphSyncService:
             counts["systems"] = await self._sync_systems(driver)
             counts["workers"] = await self._sync_workers(driver)
             counts["tasks"] = await self._sync_tasks(driver)
-            counts["actions"] = await self._sync_actions(driver)
             counts["causes"] = await self._sync_causes(driver)
             counts["materials"] = await self._sync_materials(driver)
             counts["down_events"] = await self._sync_down_events(driver)
@@ -188,7 +188,6 @@ class GraphSyncService:
             counts["fault_edges"] = await self._sync_fault_edges(driver)
             counts["maintenance_edges"] = await self._sync_maintenance_edges(driver)
             counts["cause_effect_edges"] = await self._sync_cause_effect_edges(driver)
-            counts["fault_maintenance_edges"] = await self._sync_fault_maintenance_edges(driver)
             counts["assigned_to_edges"] = await self._sync_assigned_to_edges(driver)
             counts["worker_competence_edges"] = await self._sync_worker_competence_edges(driver)
             counts["worker_shift_edges"] = await self._sync_worker_shift_edges(driver)
@@ -196,12 +195,21 @@ class GraphSyncService:
             counts["task_material_edges"] = await self._sync_task_material_edges(driver)
             counts["cause_role_edges"] = await self._sync_cause_role_edges(driver)
             counts["role_task_edges"] = await self._sync_role_task_edges(driver)
-            counts["action_competence_edges"] = await self._sync_action_competence_edges(driver)
+            counts["maintenance_competence_edges"] = await self._sync_maintenance_competence_edges(driver)
             counts["asset_system_edges"] = await self._sync_asset_system_edges(driver)
             counts["system_aggregate_edges"] = await self._sync_system_aggregate_edges(driver)
             counts["down_event_cause_edges"] = await self._sync_down_event_cause_edges(driver)
+            counts["fault_down_event_edges"] = await self._sync_fault_down_event_edges(driver)
             counts["order_asset_edges"] = await self._sync_order_asset_edges(driver)
             counts["asset_location_edges"] = await self._sync_asset_location_edges(driver)
+            counts["task_worker_edges"] = await self._sync_task_worker_edges(driver)
+            counts["task_schedule_edges"] = await self._sync_task_schedule_edges(driver)
+            counts["task_shift_edges"] = await self._sync_task_shift_edges(driver)
+            counts["worker_level_edges"] = await self._sync_worker_level_edges(driver)
+            counts["down_event_maintenance_edges"] = await self._sync_down_event_maintenance_edges(driver)
+            counts["level_competence_edges"] = await self._sync_level_competence_edges(driver)
+            counts["order_maintenance_edges"] = await self._sync_order_maintenance_edges(driver)
+            counts["order_material_edges"] = await self._sync_order_material_edges(driver)
 
             total_records = sum(counts.values())
 
@@ -287,7 +295,6 @@ class GraphSyncService:
             counts["systems"] = await self._sync_systems(driver, since=last_sync)
             counts["workers"] = await self._sync_workers(driver, since=last_sync)
             counts["tasks"] = await self._sync_tasks(driver, since=last_sync)
-            counts["actions"] = await self._sync_actions(driver, since=last_sync)
             counts["causes"] = await self._sync_causes(driver, since=last_sync)
             counts["materials"] = await self._sync_materials(driver, since=last_sync)
             counts["down_events"] = await self._sync_down_events(driver, since=last_sync)
@@ -301,9 +308,6 @@ class GraphSyncService:
                 driver, since=last_sync
             )
             counts["cause_effect_edges"] = await self._sync_cause_effect_edges(driver)
-            counts["fault_maintenance_edges"] = await self._sync_fault_maintenance_edges(
-                driver, since=last_sync
-            )
             counts["assigned_to_edges"] = await self._sync_assigned_to_edges(driver)
             counts["worker_competence_edges"] = await self._sync_worker_competence_edges(driver)
             counts["worker_shift_edges"] = await self._sync_worker_shift_edges(driver)
@@ -311,12 +315,21 @@ class GraphSyncService:
             counts["task_material_edges"] = await self._sync_task_material_edges(driver)
             counts["cause_role_edges"] = await self._sync_cause_role_edges(driver)
             counts["role_task_edges"] = await self._sync_role_task_edges(driver)
-            counts["action_competence_edges"] = await self._sync_action_competence_edges(driver)
+            counts["maintenance_competence_edges"] = await self._sync_maintenance_competence_edges(driver)
             counts["asset_system_edges"] = await self._sync_asset_system_edges(driver)
             counts["system_aggregate_edges"] = await self._sync_system_aggregate_edges(driver)
             counts["down_event_cause_edges"] = await self._sync_down_event_cause_edges(driver)
+            counts["fault_down_event_edges"] = await self._sync_fault_down_event_edges(driver)
             counts["order_asset_edges"] = await self._sync_order_asset_edges(driver)
             counts["asset_location_edges"] = await self._sync_asset_location_edges(driver)
+            counts["task_worker_edges"] = await self._sync_task_worker_edges(driver)
+            counts["task_schedule_edges"] = await self._sync_task_schedule_edges(driver)
+            counts["task_shift_edges"] = await self._sync_task_shift_edges(driver)
+            counts["worker_level_edges"] = await self._sync_worker_level_edges(driver)
+            counts["down_event_maintenance_edges"] = await self._sync_down_event_maintenance_edges(driver)
+            counts["level_competence_edges"] = await self._sync_level_competence_edges(driver)
+            counts["order_maintenance_edges"] = await self._sync_order_maintenance_edges(driver)
+            counts["order_material_edges"] = await self._sync_order_material_edges(driver)
 
             # Delete nodes that were removed from PostgreSQL
             counts["deleted"] = await self._sync_deletions(driver)
@@ -439,7 +452,6 @@ class GraphSyncService:
             "priority": "priority",
             "scheduled_date": "scheduled_date",
             "completed_date": "completed_date",
-            "assigned_to": "assigned_to",
             "recurrence": "recurrence",
             "estimated_duration_hours": "estimated_duration_hours",
             "notes": "notes",
@@ -452,10 +464,11 @@ class GraphSyncService:
             "SET m.title = row.title, m.description = row.description, "
             "m.maintenance_type = row.maintenance_type, m.status = row.status, "
             "m.priority = row.priority, m.scheduled_date = row.scheduled_date, "
-            "m.completed_date = row.completed_date, m.assigned_to = row.assigned_to, "
+            "m.completed_date = row.completed_date, "
             "m.recurrence = row.recurrence, "
             "m.estimated_duration_hours = row.estimated_duration_hours, "
-            "m.notes = row.notes, m.created_at = row.created_at, "
+            "m.notes = row.notes, "
+            "m.created_at = row.created_at, "
             "m.updated_at = row.updated_at"
         )
         return await self._write_batches(driver, rows, columns, cypher)
@@ -614,6 +627,7 @@ class GraphSyncService:
             "email": "email",
             "phone": "phone",
             "status": "status",
+            "level_id": "level_id",
             "created_at": "created_at",
             "updated_at": "updated_at",
         }
@@ -622,6 +636,7 @@ class GraphSyncService:
             "MERGE (w:Worker {pg_id: row.pg_id}) "
             "SET w.name = row.name, w.employee_id = row.employee_id, "
             "w.email = row.email, w.phone = row.phone, w.status = row.status, "
+            "w.level_id = row.level_id, "
             "w.created_at = row.created_at, w.updated_at = row.updated_at"
         )
         return await self._write_batches(driver, rows, columns, cypher)
@@ -638,6 +653,11 @@ class GraphSyncService:
             "status": "status",
             "estimated_duration_hours": "estimated_duration_hours",
             "doc_link": "doc_link",
+            "maintenance_schedule_id": "maintenance_schedule_id",
+            "shift_id": "shift_id",
+            "assigned_to": "assigned_to",
+            "action_type": "action_type",
+            "sequence_order": "sequence_order",
             "created_at": "created_at",
             "updated_at": "updated_at",
         }
@@ -647,30 +667,12 @@ class GraphSyncService:
             "SET t.name = row.name, t.description = row.description, "
             "t.task_type = row.task_type, t.status = row.status, "
             "t.estimated_duration_hours = row.estimated_duration_hours, "
-            "t.doc_link = row.doc_link, t.created_at = row.created_at, "
+            "t.doc_link = row.doc_link, "
+            "t.maintenance_schedule_id = row.maintenance_schedule_id, "
+            "t.shift_id = row.shift_id, t.assigned_to = row.assigned_to, "
+            "t.action_type = row.action_type, t.sequence_order = row.sequence_order, "
+            "t.created_at = row.created_at, "
             "t.updated_at = row.updated_at"
-        )
-        return await self._write_batches(driver, rows, columns, cypher)
-
-    async def _sync_actions(self, driver, since=None) -> int:
-        rows = await self._fetch_pg_rows(Action, since)
-        if not rows:
-            return 0
-        columns = {
-            "id": "pg_id",
-            "name": "name",
-            "description": "description",
-            "action_type": "action_type",
-            "sequence_order": "sequence_order",
-            "created_at": "created_at",
-            "updated_at": "updated_at",
-        }
-        cypher = (
-            "UNWIND $batch AS row "
-            "MERGE (a:Action {pg_id: row.pg_id}) "
-            "SET a.name = row.name, a.description = row.description, "
-            "a.action_type = row.action_type, a.sequence_order = row.sequence_order, "
-            "a.created_at = row.created_at, a.updated_at = row.updated_at"
         )
         return await self._write_batches(driver, rows, columns, cypher)
 
@@ -707,6 +709,7 @@ class GraphSyncService:
             "description": "description",
             "quantity_in_stock": "quantity_in_stock",
             "unit": "unit",
+            "order_id": "order_id",
             "created_at": "created_at",
             "updated_at": "updated_at",
         }
@@ -715,7 +718,8 @@ class GraphSyncService:
             "MERGE (m:Material {pg_id: row.pg_id}) "
             "SET m.name = row.name, m.part_number = row.part_number, "
             "m.description = row.description, m.quantity_in_stock = row.quantity_in_stock, "
-            "m.unit = row.unit, m.created_at = row.created_at, "
+            "m.unit = row.unit, m.order_id = row.order_id, "
+            "m.created_at = row.created_at, "
             "m.updated_at = row.updated_at"
         )
         return await self._write_batches(driver, rows, columns, cypher)
@@ -727,6 +731,8 @@ class GraphSyncService:
         columns = {
             "id": "pg_id",
             "asset_id": "asset_id",
+            "fault_id": "fault_id",
+            "maintenance_schedule_id": "maintenance_schedule_id",
             "started_at": "started_at",
             "ended_at": "ended_at",
             "downtime_minutes": "downtime_minutes",
@@ -739,7 +745,9 @@ class GraphSyncService:
         cypher = (
             "UNWIND $batch AS row "
             "MERGE (d:DownEvent {pg_id: row.pg_id}) "
-            "SET d.asset_id = row.asset_id, d.started_at = row.started_at, "
+            "SET d.asset_id = row.asset_id, d.fault_id = row.fault_id, "
+            "d.maintenance_schedule_id = row.maintenance_schedule_id, "
+            "d.started_at = row.started_at, "
             "d.ended_at = row.ended_at, d.downtime_minutes = row.downtime_minutes, "
             "d.description = row.description, d.severity = row.severity, "
             "d.status = row.status, d.created_at = row.created_at, "
@@ -760,6 +768,7 @@ class GraphSyncService:
             "status": "status",
             "priority": "priority",
             "requested_date": "requested_date",
+            "maintenance_schedule_id": "maintenance_schedule_id",
             "created_at": "created_at",
             "updated_at": "updated_at",
         }
@@ -769,7 +778,9 @@ class GraphSyncService:
             "SET o.order_number = row.order_number, o.title = row.title, "
             "o.description = row.description, o.order_type = row.order_type, "
             "o.status = row.status, o.priority = row.priority, "
-            "o.requested_date = row.requested_date, o.created_at = row.created_at, "
+            "o.requested_date = row.requested_date, "
+            "o.maintenance_schedule_id = row.maintenance_schedule_id, "
+            "o.created_at = row.created_at, "
             "o.updated_at = row.updated_at"
         )
         return await self._write_batches(driver, rows, columns, cypher)
@@ -869,26 +880,6 @@ class GraphSyncService:
             "MERGE (causing)-[:CAUSES]->(affected)"
         )
         batch = [{"causing_id": str(r[0]), "affected_id": str(r[1])} for r in rows]
-        return await self._write_raw_batches(driver, batch, cypher)
-
-    async def _sync_fault_maintenance_edges(self, driver, since=None) -> int:
-        async with async_session_factory() as session:
-            stmt = select(MaintenanceSchedule).where(MaintenanceSchedule.fault_id.isnot(None))
-            if since:
-                stmt = stmt.where(MaintenanceSchedule.updated_at > since)
-            result = await session.execute(stmt)
-            rows = result.scalars().all()
-
-        if not rows:
-            return 0
-
-        cypher = (
-            "UNWIND $batch AS row "
-            "MATCH (m:MaintenanceSchedule {pg_id: row.maintenance_id}) "
-            "MATCH (f:Fault {pg_id: row.fault_id}) "
-            "MERGE (m)-[:ADDRESSES_FAULT]->(f)"
-        )
-        batch = [{"maintenance_id": str(r.id), "fault_id": str(r.fault_id)} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_assigned_to_edges(self, driver, since=None) -> int:
@@ -996,19 +987,19 @@ class GraphSyncService:
         batch = [{"role_id": str(r[0]), "task_id": str(r[1])} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
-    async def _sync_action_competence_edges(self, driver, since=None) -> int:
+    async def _sync_maintenance_competence_edges(self, driver, since=None) -> int:
         async with async_session_factory() as session:
-            result = await session.execute(select(action_competence))
+            result = await session.execute(select(maintenance_competence))
             rows = result.fetchall()
         if not rows:
             return 0
         cypher = (
             "UNWIND $batch AS row "
-            "MATCH (a:Action {pg_id: row.action_id}) "
+            "MATCH (m:MaintenanceSchedule {pg_id: row.maintenance_schedule_id}) "
             "MATCH (c:Competence {pg_id: row.competence_id}) "
-            "MERGE (a)-[:requires]->(c)"
+            "MERGE (m)-[:REQUIRES_COMPETENCE]->(c)"
         )
-        batch = [{"action_id": str(r[0]), "competence_id": str(r[1])} for r in rows]
+        batch = [{"maintenance_schedule_id": str(r[0]), "competence_id": str(r[1])} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_asset_system_edges(self, driver, since=None) -> int:
@@ -1056,6 +1047,25 @@ class GraphSyncService:
         batch = [{"down_event_id": str(r[0]), "cause_id": str(r[1])} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
+    async def _sync_fault_down_event_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            stmt = select(DownEvent).where(DownEvent.fault_id.isnot(None))
+            if since:
+                stmt = stmt.where(DownEvent.updated_at > since)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (f:Fault {pg_id: row.fault_id}) "
+            "MATCH (d:DownEvent {pg_id: row.down_event_id}) "
+            "MERGE (f)-[:HAS_OCCURRED]->(d)"
+        )
+        batch = [{"fault_id": str(r.fault_id), "down_event_id": str(r.id)} for r in rows]
+        return await self._write_raw_batches(driver, batch, cypher)
+
     async def _sync_order_asset_edges(self, driver, since=None) -> int:
         async with async_session_factory() as session:
             result = await session.execute(select(order_asset))
@@ -1086,6 +1096,150 @@ class GraphSyncService:
         batch = [{"asset_id": str(r[0]), "location_id": str(r[1])} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
+    async def _sync_task_worker_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            result = await session.execute(select(task_worker))
+            rows = result.fetchall()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (t:Task {pg_id: row.task_id}) "
+            "MATCH (w:Worker {pg_id: row.worker_id}) "
+            "MERGE (t)-[:assigned_to]->(w)"
+        )
+        batch = [{"task_id": str(r[0]), "worker_id": str(r[1])} for r in rows]
+        return await self._write_raw_batches(driver, batch, cypher)
+
+    async def _sync_task_schedule_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            stmt = select(Task).where(Task.maintenance_schedule_id.isnot(None))
+            if since:
+                stmt = stmt.where(Task.updated_at > since)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (t:Task {pg_id: row.task_id}) "
+            "MATCH (m:MaintenanceSchedule {pg_id: row.schedule_id}) "
+            "MERGE (t)-[:belongs_to]->(m)"
+        )
+        batch = [{"task_id": str(r.id), "schedule_id": str(r.maintenance_schedule_id)} for r in rows]
+        return await self._write_raw_batches(driver, batch, cypher)
+
+    async def _sync_task_shift_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            stmt = select(Task).where(Task.shift_id.isnot(None))
+            if since:
+                stmt = stmt.where(Task.updated_at > since)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (t:Task {pg_id: row.task_id}) "
+            "MATCH (s:Shift {pg_id: row.shift_id}) "
+            "MERGE (t)-[:scheduled_during]->(s)"
+        )
+        batch = [{"task_id": str(r.id), "shift_id": str(r.shift_id)} for r in rows]
+        return await self._write_raw_batches(driver, batch, cypher)
+
+    async def _sync_worker_level_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            stmt = select(Worker).where(Worker.level_id.isnot(None))
+            if since:
+                stmt = stmt.where(Worker.updated_at > since)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (w:Worker {pg_id: row.worker_id}) "
+            "MATCH (l:Level {pg_id: row.level_id}) "
+            "MERGE (w)-[:has_level]->(l)"
+        )
+        batch = [{"worker_id": str(r.id), "level_id": str(r.level_id)} for r in rows]
+        return await self._write_raw_batches(driver, batch, cypher)
+
+    async def _sync_down_event_maintenance_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            stmt = select(DownEvent).where(DownEvent.maintenance_schedule_id.isnot(None))
+            if since:
+                stmt = stmt.where(DownEvent.updated_at > since)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (d:DownEvent {pg_id: row.down_event_id}) "
+            "MATCH (m:MaintenanceSchedule {pg_id: row.maintenance_schedule_id}) "
+            "MERGE (d)-[:resolved_by]->(m)"
+        )
+        batch = [{"down_event_id": str(r.id), "maintenance_schedule_id": str(r.maintenance_schedule_id)} for r in rows]
+        return await self._write_raw_batches(driver, batch, cypher)
+
+    async def _sync_level_competence_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            result = await session.execute(select(level_competence))
+            rows = result.fetchall()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (l:Level {pg_id: row.level_id}) "
+            "MATCH (c:Competence {pg_id: row.competence_id}) "
+            "MERGE (l)-[:has_competence]->(c)"
+        )
+        batch = [{"level_id": str(r[0]), "competence_id": str(r[1])} for r in rows]
+        return await self._write_raw_batches(driver, batch, cypher)
+
+    async def _sync_order_maintenance_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            stmt = select(Order).where(Order.maintenance_schedule_id.isnot(None))
+            if since:
+                stmt = stmt.where(Order.updated_at > since)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (o:Order {pg_id: row.order_id}) "
+            "MATCH (m:MaintenanceSchedule {pg_id: row.maintenance_schedule_id}) "
+            "MERGE (o)-[:linked_to]->(m)"
+        )
+        batch = [
+            {"order_id": str(r.id), "maintenance_schedule_id": str(r.maintenance_schedule_id)}
+            for r in rows
+        ]
+        return await self._write_raw_batches(driver, batch, cypher)
+
+    async def _sync_order_material_edges(self, driver, since=None) -> int:
+        async with async_session_factory() as session:
+            stmt = select(Material).where(Material.order_id.isnot(None))
+            if since:
+                stmt = stmt.where(Material.updated_at > since)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        if not rows:
+            return 0
+        cypher = (
+            "UNWIND $batch AS row "
+            "MATCH (o:Order {pg_id: row.order_id}) "
+            "MATCH (m:Material {pg_id: row.material_id}) "
+            "MERGE (o)-[:uses_material]->(m)"
+        )
+        batch = [
+            {"order_id": str(r.order_id), "material_id": str(r.id)}
+            for r in rows
+        ]
+        return await self._write_raw_batches(driver, batch, cypher)
+
     async def _sync_deletions(self, driver) -> int:
         """Remove Neo4j nodes that no longer exist in PostgreSQL."""
         deleted = 0
@@ -1099,7 +1253,6 @@ class GraphSyncService:
             (Competence, "Competence"),
             (Level, "Level"),
             (Task, "Task"),
-            (Action, "Action"),
             (Cause, "Cause"),
             (Material, "Material"),
             (Shift, "Shift"),

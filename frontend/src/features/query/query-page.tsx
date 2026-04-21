@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Clock, Trash2, Cpu } from "lucide-react";
+import { Send, Clock, Trash2, Cpu, Bot } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { useQueryRAG } from "@/api/query";
+import { useQueryRAG, useAgentQuery } from "@/api/query";
 import { useQueryHistoryStore } from "@/stores/query-history-store";
 import type { QueryMode, QueryData } from "@/types/query";
 
@@ -17,18 +17,30 @@ interface Message {
 
 const modes: { value: QueryMode; label: string }[] = [
   { value: "auto", label: "Auto" },
+  { value: "agent", label: "Agent" },
   { value: "vector", label: "Vector" },
   { value: "graph", label: "Graph" },
+  { value: "graphrag", label: "GraphRAG" },
   { value: "hybrid", label: "Hybrid" },
 ];
+
+const agentIcons: Record<string, string> = {
+  scheduling: "🗓️",
+  competency: "🎯",
+  analyzer: "📊",
+  recommender: "💡",
+};
 
 export default function QueryPage() {
   const [mode, setMode] = useState<QueryMode>("auto");
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const queryMutation = useQueryRAG();
+  const queryRagMutation = useQueryRAG();
+  const agentMutation = useAgentQuery();
   const history = useQueryHistoryStore();
+
+  const isPending = queryRagMutation.isPending || agentMutation.isPending;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,26 +48,44 @@ export default function QueryPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!question.trim() || queryMutation.isPending) return;
+    if (!question.trim() || isPending) return;
 
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: question, mode };
     setMessages((prev) => [...prev, userMsg]);
 
-    queryMutation.mutate(
-      { question, mode },
-      {
-        onSuccess: (data) => {
-          const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: data.answer, data, mode };
-          setMessages((prev) => [...prev, assistantMsg]);
-          history.add({ question, mode, answer: data.answer, modeUsed: data.mode_used });
-          setQuestion("");
-        },
-        onError: (err) => {
-          const errMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: `Error: ${err.message}` };
-          setMessages((prev) => [...prev, errMsg]);
-        },
-      },
-    );
+    const onSuccess = (data: QueryData) => {
+      const assistantMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.answer,
+        data,
+        mode,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+      history.add({
+        question,
+        mode,
+        answer: data.answer,
+        modeUsed: data.mode_used,
+        agentUsed: data.agent_used ?? null,
+      });
+      setQuestion("");
+    };
+
+    const onError = (err: Error) => {
+      const errMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `Error: ${err.message}`,
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    };
+
+    if (mode === "agent" || mode === "auto") {
+      queryRagMutation.mutate({ question, mode }, { onSuccess, onError });
+    } else {
+      queryRagMutation.mutate({ question, mode }, { onSuccess, onError });
+    }
   };
 
   return (
@@ -66,7 +96,7 @@ export default function QueryPage() {
         {/* Chat Area */}
         <div className="flex flex-col rounded-lg border border-border">
           {/* Mode Selector */}
-          <div className="flex items-center gap-2 border-b border-border p-3">
+          <div className="flex items-center gap-2 border-b border-border p-3 flex-wrap">
             <span className="text-xs font-medium text-muted-foreground">Mode:</span>
             {modes.map((m) => (
               <button
@@ -102,9 +132,19 @@ export default function QueryPage() {
                   )}
                   {msg.data && (
                     <div className="mt-3 space-y-2 border-t border-border/50 pt-2">
-                      {msg.data.mode_used && (
-                        <p className="text-xs text-muted-foreground">Mode used: {msg.data.mode_used}</p>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {msg.data.mode_used && (
+                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            {msg.data.mode_used}
+                          </span>
+                        )}
+                        {msg.data.agent_used && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                            <Bot className="h-3 w-3" />
+                            {agentIcons[msg.data.agent_used] ?? ""} {msg.data.agent_used} agent
+                          </span>
+                        )}
+                      </div>
                       {msg.data.model_used && (
                         <p className="text-xs text-muted-foreground">Model: {msg.data.model_used}</p>
                       )}
@@ -117,6 +157,37 @@ export default function QueryPage() {
                         <details className="overflow-hidden text-xs">
                           <summary className="cursor-pointer text-primary">Cypher Query</summary>
                           <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-background p-2 font-mono">{msg.data.cypher_used}</pre>
+                        </details>
+                      )}
+                      {msg.data.graph_entities && msg.data.graph_entities.length > 0 && (
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-primary">Graph Entities ({msg.data.graph_entities.length})</summary>
+                          <div className="mt-1 space-y-1">
+                            {msg.data.graph_entities.map((ent, i) => (
+                              <div key={i} className="rounded bg-background p-2">
+                                <span className="font-medium">{ent.name}</span>
+                                <span className="ml-1 text-muted-foreground">({ent.entity_type})</span>
+                                {ent.description && (
+                                  <p className="mt-0.5 text-muted-foreground line-clamp-2">{ent.description}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                      {msg.data.cmms_references && msg.data.cmms_references.length > 0 && (
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-primary">CMMS References ({msg.data.cmms_references.length})</summary>
+                          <div className="mt-1 space-y-1">
+                            {msg.data.cmms_references.map((ref, i) => (
+                              <div key={i} className="rounded bg-background p-2">
+                                <span className="font-medium">{ref.entity_name}</span>
+                                {" → "}
+                                <span>{ref.cmms_label}: {ref.cmms_name}</span>
+                                {ref.cmms_pg_id && <span className="text-muted-foreground"> (ID: {ref.cmms_pg_id})</span>}
+                              </div>
+                            ))}
+                          </div>
                         </details>
                       )}
                       {msg.data.sources && msg.data.sources.length > 0 && (
@@ -138,7 +209,7 @@ export default function QueryPage() {
                 </div>
               </div>
             ))}
-            {queryMutation.isPending && (
+            {isPending && (
               <div className="flex justify-start">
                 <div className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -160,7 +231,7 @@ export default function QueryPage() {
             />
             <button
               type="submit"
-              disabled={!question.trim() || queryMutation.isPending}
+              disabled={!question.trim() || isPending}
               className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
@@ -193,6 +264,7 @@ export default function QueryPage() {
                   <p className="truncate font-medium">{entry.question}</p>
                   <p className="mt-0.5 text-muted-foreground">
                     {entry.mode} — {entry.modeUsed && `used ${entry.modeUsed}`}
+                    {entry.agentUsed && ` via ${entry.agentUsed}`}
                   </p>
                 </button>
               ))

@@ -22,13 +22,11 @@ async def create_schedule(
 ) -> MaintenanceSchedule:
     schedule = MaintenanceSchedule(
         asset_id=asset_id,
-        fault_id=data.fault_id,
         title=data.title,
         description=data.description,
         maintenance_type=data.maintenance_type,
         priority=data.priority,
         scheduled_date=data.scheduled_date,
-        assigned_to=data.assigned_to,
         recurrence=data.recurrence,
         estimated_duration_hours=data.estimated_duration_hours,
         notes=data.notes,
@@ -158,13 +156,11 @@ async def generate_next_recurrence(
     next_date = schedule.scheduled_date + delta
     next_schedule = MaintenanceSchedule(
         asset_id=schedule.asset_id,
-        fault_id=schedule.fault_id,
         title=schedule.title,
         description=schedule.description,
         maintenance_type=schedule.maintenance_type,
         priority=schedule.priority,
         scheduled_date=next_date,
-        assigned_to=schedule.assigned_to,
         recurrence=schedule.recurrence,
         estimated_duration_hours=schedule.estimated_duration_hours,
         notes=schedule.notes,

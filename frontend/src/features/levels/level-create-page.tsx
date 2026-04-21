@@ -5,11 +5,13 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCreateLevel } from "@/api/levels";
+import { useRoles } from "@/api/roles";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(255),
-  rank: z.coerce.number().int().min(0, "Rank must be 0 or greater"),
+  rank: z.number().int().min(0, "Rank must be 0 or greater"),
   description: z.string().optional(),
+  role_id: z.string().optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -17,6 +19,7 @@ type Form = z.infer<typeof schema>;
 export default function LevelCreatePage() {
   const navigate = useNavigate();
   const create = useCreateLevel();
+  const { data: rolesData } = useRoles({ per_page: 100 });
 
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
@@ -46,6 +49,15 @@ export default function LevelCreatePage() {
           <label className="mb-1 block text-sm font-medium">Rank *</label>
           <input type="number" {...register("rank", { valueAsNumber: true })} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
           {errors.rank && <p className="mt-1 text-xs text-destructive">{errors.rank.message}</p>}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Role</label>
+          <select {...register("role_id")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">None</option>
+            {rolesData?.data.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Description</label>

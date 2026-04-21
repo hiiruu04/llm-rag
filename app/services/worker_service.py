@@ -3,7 +3,9 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.models.level import Level
 from app.models.schemas import WorkerCreate, WorkerUpdate
 from app.models.worker import Worker
 
@@ -12,12 +14,20 @@ async def create_worker(db: AsyncSession, data: WorkerCreate) -> Worker:
     worker = Worker(**data.model_dump())
     db.add(worker)
     await db.commit()
-    await db.refresh(worker)
-    return worker
+    result = await db.execute(
+        select(Worker)
+        .where(Worker.id == worker.id)
+        .options(selectinload(Worker.level).selectinload(Level.role))
+    )
+    return result.scalar_one()
 
 
 async def get_worker(db: AsyncSession, worker_id: UUID) -> Optional[Worker]:
-    result = await db.execute(select(Worker).where(Worker.id == worker_id))
+    result = await db.execute(
+        select(Worker)
+        .where(Worker.id == worker_id)
+        .options(selectinload(Worker.level).selectinload(Level.role))
+    )
     return result.scalar_one_or_none()
 
 
@@ -28,7 +38,7 @@ async def list_workers(
     status: Optional[str] = None,
     employee_id: Optional[str] = None,
 ) -> tuple[list[Worker], int]:
-    query = select(Worker)
+    query = select(Worker).options(selectinload(Worker.level).selectinload(Level.role))
     count_query = select(func.count(Worker.id))
 
     if status:
@@ -52,8 +62,12 @@ async def update_worker(db: AsyncSession, worker: Worker, data: WorkerUpdate) ->
     for field, value in update_data.items():
         setattr(worker, field, value)
     await db.commit()
-    await db.refresh(worker)
-    return worker
+    result = await db.execute(
+        select(Worker)
+        .where(Worker.id == worker.id)
+        .options(selectinload(Worker.level).selectinload(Level.role))
+    )
+    return result.scalar_one()
 
 
 async def delete_worker(db: AsyncSession, worker: Worker) -> None:

@@ -22,7 +22,6 @@ from sqlalchemy import func, select, text
 
 from app.core.database import async_session_factory, engine
 from app.models import (
-    Action,
     Aggregate,
     Asset,
     Cause,
@@ -41,18 +40,20 @@ from app.models import (
     Sensor,
     SensorData,
     MaintenanceSchedule,
-    action_competence,
+    maintenance_competence,
     asset_location,
     asset_system,
     asset_worker_assignment,
     cause_role,
     down_event_cause,
     fault_cause_effect,
+    level_competence,
     order_asset,
     role_task,
     system_aggregate,
     task_competence,
     task_material,
+    task_worker,
     worker_competence,
     worker_shift,
 )
@@ -150,9 +151,11 @@ async def clean_db(session: AsyncSession) -> None:
     logger.info("Cleaning existing data...")
     for table in [
         # Junction tables first (reverse dependency order)
-        "action_competence",
+        "maintenance_competence",
         "task_competence",
         "task_material",
+        "task_worker",
+        "level_competence",
         "cause_role",
         "role_task",
         "down_event_cause",
@@ -173,7 +176,6 @@ async def clean_db(session: AsyncSession) -> None:
         # New entity tables
         "down_events",
         "orders",
-        "actions",
         "materials",
         "causes",
         "tasks",
@@ -450,18 +452,18 @@ async def seed_sensor_data(session: AsyncSession, sensors: dict[str, Sensor]) ->
 
 
 async def seed_maintenance_schedules(
-    session: AsyncSession, assets: dict[str, Asset], faults: dict[str, Fault]
-) -> None:
-    """Create maintenance schedules linked to assets and some faults."""
+    session: AsyncSession, assets: dict[str, Asset]
+) -> dict[str, MaintenanceSchedule]:
+    """Create maintenance schedules linked to assets."""
     count = await session.scalar(func.count(MaintenanceSchedule.id))
     if count and count > 0:
         logger.info(f"Maintenance schedules already exist ({count}), skipping.")
-        return
+        return {ms.title: ms for ms in (await session.scalars(select(MaintenanceSchedule))).all()}
 
     now = datetime.now(timezone.utc)
 
     schedules = [
-        # (title, description, type, status, priority, asset_name, fault_code, recurrence, assigned_to, hours, days_offset)
+        # (title, description, type, status, priority, asset_name, recurrence, hours, days_offset)
         (
             "Boiler Annual Inspection",
             "Comprehensive annual inspection of Boiler Unit 01 including pressure vessel, safety valves, and controls",
@@ -469,9 +471,7 @@ async def seed_maintenance_schedules(
             "scheduled",
             "high",
             "Boiler Unit 01",
-            None,
             "yearly",
-            "Engineering Team A",
             16.0,
             30,
         ),
@@ -482,9 +482,7 @@ async def seed_maintenance_schedules(
             "in_progress",
             "critical",
             "Boiler Unit 01",
-            "B-TL-001",
             "none",
-            "Repair Crew B",
             8.0,
             0,
         ),
@@ -495,9 +493,7 @@ async def seed_maintenance_schedules(
             "scheduled",
             "medium",
             "Boiler Unit 01",
-            None,
             "quarterly",
-            "Instrumentation Team",
             4.0,
             14,
         ),
@@ -508,9 +504,7 @@ async def seed_maintenance_schedules(
             "scheduled",
             "medium",
             "Feed Water Pump",
-            None,
             "yearly",
-            "Mechanical Team",
             12.0,
             60,
         ),
@@ -521,9 +515,7 @@ async def seed_maintenance_schedules(
             "scheduled",
             "low",
             "Combustion Chamber",
-            None,
             "monthly",
-            "Operations Team",
             3.0,
             7,
         ),
@@ -534,9 +526,7 @@ async def seed_maintenance_schedules(
             "scheduled",
             "high",
             "Steam Turbine 01",
-            "T-BV-001",
             "none",
-            "Mechanical Team",
             24.0,
             10,
         ),
@@ -547,9 +537,7 @@ async def seed_maintenance_schedules(
             "completed",
             "medium",
             "Steam Turbine 01",
-            None,
             "monthly",
-            "Condition Monitoring",
             2.0,
             -5,
         ),
@@ -560,9 +548,7 @@ async def seed_maintenance_schedules(
             "completed",
             "medium",
             "Steam Turbine 01",
-            "T-SSL-001",
             "none",
-            "Mechanical Team",
             10.0,
             -10,
         ),
@@ -573,9 +559,7 @@ async def seed_maintenance_schedules(
             "scheduled",
             "medium",
             "Generator",
-            None,
             "quarterly",
-            "Electrical Team",
             6.0,
             21,
         ),
@@ -586,14 +570,13 @@ async def seed_maintenance_schedules(
             "scheduled",
             "low",
             "Cooling System",
-            None,
             "quarterly",
-            "Maintenance Crew C",
             4.0,
             45,
         ),
     ]
 
+    ms_dict = {}
     for (
         title,
         desc,
@@ -601,52 +584,66 @@ async def seed_maintenance_schedules(
         status,
         priority,
         asset_name,
-        fault_code,
         recurrence,
-        assigned_to,
         est_hours,
         days_offset,
     ) in schedules:
         asset = assets[asset_name]
-        fault_id = faults[fault_code].id if fault_code else None
         scheduled_date = now + timedelta(days=days_offset)
         completed_date = None
         if status == "completed":
             completed_date = scheduled_date + timedelta(hours=est_hours)
 
-        session.add(
-            MaintenanceSchedule(
-                asset_id=asset.id,
-                fault_id=fault_id,
-                title=title,
-                description=desc,
-                maintenance_type=mtype,
-                status=status,
-                priority=priority,
-                scheduled_date=scheduled_date,
-                completed_date=completed_date,
-                assigned_to=assigned_to,
-                recurrence=recurrence,
-                estimated_duration_hours=est_hours,
-            )
+        ms = MaintenanceSchedule(
+            asset_id=asset.id,
+            title=title,
+            description=desc,
+            maintenance_type=mtype,
+            status=status,
+            priority=priority,
+            scheduled_date=scheduled_date,
+            completed_date=completed_date,
+            recurrence=recurrence,
+            estimated_duration_hours=est_hours,
         )
+        session.add(ms)
+        ms_dict[title] = ms
 
+    await session.flush()
     await session.commit()
     logger.info(f"Created {len(schedules)} maintenance schedules.")
+    return ms_dict
 
 
-async def seed_levels(session: AsyncSession) -> dict[str, Level]:
+async def seed_levels(session: AsyncSession, roles: dict[str, Role]) -> dict[str, Level]:
     count = await session.scalar(func.count(Level.id))
     if count and count > 0:
         return {l.name: l for l in (await session.scalars(select(Level))).all()}
     levels = {}
-    for name, rank, desc in [
-        ("Beginner", 1, "Basic knowledge"),
-        ("Intermediate", 2, "Solid working knowledge"),
-        ("Advanced", 3, "Expert-level"),
-        ("Expert", 4, "Master-level, can train others"),
+    # Role-specific levels: (name, rank, description, role_name)
+    for name, rank, desc, role_name in [
+        ("Junior Mechanic", 1, "Basic mechanical skills", "Senior Mechanic"),
+        ("Mechanic", 2, "Solid mechanical knowledge", "Senior Mechanic"),
+        ("Senior Mechanic", 3, "Expert mechanical repair", "Senior Mechanic"),
+        ("Junior Electrician", 1, "Basic electrical skills", "Electrician"),
+        ("Electrician", 2, "Qualified electrician", "Electrician"),
+        ("Senior Electrician", 3, "Expert electrical systems", "Electrician"),
+        ("Junior Boiler Operator", 1, "Basic boiler operations", "Boiler Operator"),
+        ("Boiler Operator", 2, "Qualified boiler operator", "Boiler Operator"),
+        ("Senior Boiler Operator", 3, "Expert boiler operations", "Boiler Operator"),
+        ("Junior Turbine Engineer", 1, "Basic turbine knowledge", "Turbine Engineer"),
+        ("Turbine Engineer", 2, "Qualified turbine specialist", "Turbine Engineer"),
+        ("Senior Turbine Engineer", 3, "Expert turbine operations", "Turbine Engineer"),
+        ("Shift Supervisor I", 1, "Junior shift coordination", "Shift Supervisor"),
+        ("Shift Supervisor II", 2, "Senior shift coordination", "Shift Supervisor"),
+        ("Safety Officer I", 1, "Basic safety compliance", "Safety Officer"),
+        ("Safety Officer II", 2, "Senior safety compliance", "Safety Officer"),
+        ("Junior Planner", 1, "Basic maintenance planning", "Maintenance Planner"),
+        ("Maintenance Planner", 2, "Senior maintenance planning", "Maintenance Planner"),
+        ("Instrument Tech I", 1, "Basic instrument calibration", "Instrument Technician"),
+        ("Instrument Tech II", 2, "Senior instrument calibration", "Instrument Technician"),
     ]:
-        level = Level(name=name, rank=rank, description=desc)
+        level = Level(name=name, rank=rank, description=desc, role_id=roles[role_name].id)
         session.add(level)
         levels[name] = level
     await session.commit()
@@ -814,16 +811,23 @@ async def seed_workers(session, competences, levels, shifts):
     if count and count > 0:
         return {w.name: w for w in (await session.scalars(select(Worker))).all()}
     workers = {}
-    for name, eid, email, st in [
-        ("John Smith", "EMP-001", "john.smith@plant.com", "active"),
-        ("Maria Garcia", "EMP-002", "maria.garcia@plant.com", "active"),
-        ("Robert Chen", "EMP-003", "robert.chen@plant.com", "active"),
-        ("Sarah Johnson", "EMP-004", "sarah.johnson@plant.com", "active"),
-        ("Ahmed Hassan", "EMP-005", "ahmed.hassan@plant.com", "active"),
-        ("Lisa Wong", "EMP-006", "lisa.wong@plant.com", "on_leave"),
-        ("James Brown", "EMP-007", "james.brown@plant.com", "active"),
-    ]:
-        w = Worker(name=name, employee_id=eid, email=email, status=st)
+    worker_specs = [
+        ("John Smith", "EMP-001", "john.smith@plant.com", "active", "Senior Boiler Operator"),
+        ("Maria Garcia", "EMP-002", "maria.garcia@plant.com", "active", "Senior Electrician"),
+        ("Robert Chen", "EMP-003", "robert.chen@plant.com", "active", "Senior Turbine Engineer"),
+        ("Sarah Johnson", "EMP-004", "sarah.johnson@plant.com", "active", "Mechanic"),
+        ("Ahmed Hassan", "EMP-005", "ahmed.hassan@plant.com", "active", "Electrician"),
+        ("Lisa Wong", "EMP-006", "lisa.wong@plant.com", "on_leave", "Safety Officer II"),
+        ("James Brown", "EMP-007", "james.brown@plant.com", "active", "Senior Mechanic"),
+    ]
+    for name, eid, email, st, lname in worker_specs:
+        w = Worker(
+            name=name,
+            employee_id=eid,
+            email=email,
+            status=st,
+            level_id=levels.get(lname, {}).id if lname in levels else None,
+        )
         session.add(w)
         workers[name] = w
     await session.flush()
@@ -869,12 +873,13 @@ async def seed_workers(session, competences, levels, shifts):
     return workers
 
 
-async def seed_tasks(session):
+async def seed_tasks(session, maintenance_schedules, shifts):
     count = await session.scalar(func.count(Task.id))
     if count and count > 0:
         return {t.name: t for t in (await session.scalars(select(Task))).all()}
     tasks = {}
-    for name, desc, ttype, st, hrs, doc in [
+    # (name, desc, ttype, st, hrs, doc, schedule_title, shift_name, assigned_to, action_type, seq_order)
+    task_specs = [
         (
             "Bearing Replacement",
             "Replace turbine bearings",
@@ -882,8 +887,13 @@ async def seed_tasks(session):
             "pending",
             24.0,
             "/docs/bearing-replace.pdf",
+            "Turbine Bearing Replacement",
+            "Morning Shift",
+            "Mechanical Team",
+            "repair",
+            0,
         ),
-        ("Safety Valve Testing", "Test safety valves", "inspection", "pending", 4.0, None),
+        ("Safety Valve Testing", "Test safety valves", "inspection", "pending", 4.0, None, "Safety Valve Calibration", "Morning Shift", "Instrumentation Team", "inspection", 0),
         (
             "Boiler Tube Inspection",
             "Internal tube inspection",
@@ -891,12 +901,20 @@ async def seed_tasks(session):
             "completed",
             8.0,
             "/docs/tube-inspect.pdf",
+            "Boiler Annual Inspection",
+            "Afternoon Shift",
+            "Engineering Team A",
+            "inspection",
+            1,
         ),
-        ("Pump Seal Replacement", "Replace pump seals", "repair", "in_progress", 6.0, None),
-        ("Combustion Tuning", "Optimize combustion", "calibration", "pending", 3.0, None),
-        ("Generator Winding Test", "Winding insulation test", "inspection", "pending", 6.0, None),
-        ("Turbine Alignment", "Turbine-generator alignment", "calibration", "pending", 12.0, None),
-    ]:
+        ("Pump Seal Replacement", "Replace pump seals", "repair", "in_progress", 6.0, None, "Feed Water Pump Overhaul", "Morning Shift", "Mechanical Team", "repair", 0),
+        ("Combustion Tuning", "Optimize combustion", "calibration", "pending", 3.0, None, "Combustion Efficiency Test", "Afternoon Shift", "Operations Team", "calibration", 0),
+        ("Generator Winding Test", "Winding insulation test", "inspection", "pending", 6.0, None, "Generator Winding Inspection", "Morning Shift", "Electrical Team", "inspection", 0),
+        ("Turbine Alignment", "Turbine-generator alignment", "calibration", "pending", 12.0, None, "Turbine Bearing Replacement", "Morning Shift", "Mechanical Team", "verification", 1),
+    ]
+    for name, desc, ttype, st, hrs, doc, schedule_title, shift_name, assigned_to, action_type, seq_order in task_specs:
+        ms = maintenance_schedules.get(schedule_title)
+        shift = shifts.get(shift_name)
         t = Task(
             name=name,
             description=desc,
@@ -904,6 +922,11 @@ async def seed_tasks(session):
             status=st,
             estimated_duration_hours=hrs,
             doc_link=doc,
+            maintenance_schedule_id=ms.id if ms else None,
+            shift_id=shift.id if shift else None,
+            assigned_to=assigned_to,
+            action_type=action_type,
+            sequence_order=seq_order,
         )
         session.add(t)
         tasks[name] = t
@@ -912,27 +935,6 @@ async def seed_tasks(session):
     return tasks
 
 
-async def seed_actions(session):
-    count = await session.scalar(func.count(Action.id))
-    if count and count > 0:
-        return {a.name: a for a in (await session.scalars(select(Action))).all()}
-    actions = {}
-    for name, desc, atype, seq in [
-        ("Isolate Equipment", "Lock out equipment", "safety", 1),
-        ("Drain System", "Drain fluids", "preparation", 2),
-        ("Remove Guards", "Remove guards", "preparation", 3),
-        ("Inspect Components", "Visual inspection", "inspection", 4),
-        ("Replace Parts", "Install new parts", "repair", 5),
-        ("Reassemble", "Reassemble", "repair", 6),
-        ("Test Run", "Verify operation", "verification", 7),
-        ("Document Results", "Record findings", "documentation", 8),
-    ]:
-        a = Action(name=name, description=desc, action_type=atype, sequence_order=seq)
-        session.add(a)
-        actions[name] = a
-    await session.commit()
-    logger.info(f"Created {len(actions)} actions.")
-    return actions
 
 
 async def seed_causes(session):
@@ -981,13 +983,14 @@ async def seed_materials(session):
     return materials
 
 
-async def seed_down_events(session, assets, causes):
+async def seed_down_events(session, assets, causes, faults, maintenance_schedules):
     count = await session.scalar(func.count(DownEvent.id))
     if count and count > 0:
         return {}
     now = datetime.now(timezone.utc)
     events = {}
-    for desc, aname, dur, sev, st, cnames in [
+    # (desc, asset_name, duration, severity, status, cause_names, fault_code, schedule_title)
+    for desc, aname, dur, sev, st, cnames, fault_code, schedule_title in [
         (
             "Boiler emergency shutdown",
             "Boiler Unit 01",
@@ -995,6 +998,8 @@ async def seed_down_events(session, assets, causes):
             "high",
             "resolved",
             ["Thermal Fatigue", "Corrosion"],
+            "B-TL-001",
+            "Tube Leak Repair",
         ),
         (
             "Turbine vibration trip",
@@ -1003,8 +1008,10 @@ async def seed_down_events(session, assets, causes):
             "critical",
             "active",
             ["Vibration Damage", "Bearing Wear"],
+            "T-BV-001",
+            "Turbine Bearing Replacement",
         ),
-        ("Pump seal failure", "Feed Water Pump", 90, "medium", "resolved", ["Seal Degradation"]),
+        ("Pump seal failure", "Feed Water Pump", 90, "medium", "resolved", ["Seal Degradation"], "B-TL-001", None),
         (
             "Generator overheat",
             "Generator",
@@ -1012,8 +1019,10 @@ async def seed_down_events(session, assets, causes):
             "high",
             "active",
             ["Thermal Fatigue", "Electrical Fault"],
+            "B-HP-001",
+            None,
         ),
-        ("Cooling system leak", "Cooling System", 60, "low", "resolved", ["Corrosion"]),
+        ("Cooling system leak", "Cooling System", 60, "low", "resolved", ["Corrosion"], "B-TL-001", None),
         # Unresolved down events -- still ongoing
         (
             "Boiler low water level trip",
@@ -1022,6 +1031,8 @@ async def seed_down_events(session, assets, causes):
             "critical",
             "active",
             ["Corrosion", "Improper Lubrication"],
+            "B-LW-001",
+            "Boiler Annual Inspection",
         ),
         (
             "Combustion chamber flame failure",
@@ -1030,6 +1041,8 @@ async def seed_down_events(session, assets, causes):
             "critical",
             "active",
             ["Foreign Object Damage"],
+            "B-TL-001",
+            None,
         ),
         (
             "Feed water pump cavitation",
@@ -1038,6 +1051,8 @@ async def seed_down_events(session, assets, causes):
             "high",
             "active",
             ["Bearing Wear", "Seal Degradation"],
+            "B-LW-001",
+            "Feed Water Pump Overhaul",
         ),
         (
             "Turbine lubrication system alarm",
@@ -1046,17 +1061,24 @@ async def seed_down_events(session, assets, causes):
             "high",
             "active",
             ["Improper Lubrication", "Bearing Wear"],
+            "T-BV-001",
+            None,
         ),
     ]:
         started = now - timedelta(hours=random.randint(1, 48))
         ended = started + timedelta(minutes=dur) if st == "resolved" else None
         actual_dur = dur if st == "resolved" else None
+        fault = faults[fault_code]
+        fault.name = desc
+        fault_id = fault.id
+        ms_id = maintenance_schedules.get(schedule_title).id if schedule_title and maintenance_schedules.get(schedule_title) else None
         e = DownEvent(
             asset_id=assets[aname].id,
+            fault_id=fault_id,
+            maintenance_schedule_id=ms_id,
             started_at=started,
             ended_at=ended,
             downtime_minutes=actual_dur,
-            description=desc,
             severity=sev,
             status=st,
         )
@@ -1220,7 +1242,8 @@ async def seed_associations(
     materials,
     causes,
     roles,
-    actions,
+    maintenance_schedules,
+    levels,
 ):
     # Asset <-> Worker (every asset has assigned workers)
     for aname, wname in [
@@ -1374,23 +1397,74 @@ async def seed_associations(
                 quantity_required=qty,
             )
         )
-    # Action <-> Competence
-    for an, cn in [
-        ("Inspect Components", "Vibration Analysis"),
-        ("Inspect Components", "Thermal Imaging"),
-        ("Replace Parts", "Welding"),
-        ("Replace Parts", "Pipe Fitting"),
-        ("Isolate Equipment", "Safety Procedures"),
-        ("Test Run", "Turbine Operation"),
-        ("Test Run", "Boiler Operation"),
-        ("Drain System", "Pipe Fitting"),
+    # MaintenanceSchedule <-> Competence
+    for ms_title, cn in [
+        ("Boiler Annual Inspection", "Vibration Analysis"),
+        ("Boiler Annual Inspection", "Thermal Imaging"),
+        ("Tube Leak Repair", "Welding"),
+        ("Tube Leak Repair", "Pipe Fitting"),
+        ("Safety Valve Calibration", "Safety Procedures"),
+        ("Turbine Bearing Replacement", "Turbine Operation"),
+        ("Combustion Efficiency Test", "Boiler Operation"),
+        ("Feed Water Pump Overhaul", "Pipe Fitting"),
+    ]:
+        ms = maintenance_schedules.get(ms_title)
+        if ms:
+            await session.execute(
+                maintenance_competence.insert().values(
+                    maintenance_schedule_id=ms.id,
+                    competence_id=competences[cn].id,
+                )
+            )
+    # Task <-> Worker
+    for tn, wname in [
+        ("Bearing Replacement", "Robert Chen"),
+        ("Bearing Replacement", "James Brown"),
+        ("Safety Valve Testing", "John Smith"),
+        ("Boiler Tube Inspection", "Sarah Johnson"),
+        ("Boiler Tube Inspection", "John Smith"),
+        ("Pump Seal Replacement", "Sarah Johnson"),
+        ("Pump Seal Replacement", "James Brown"),
+        ("Combustion Tuning", "John Smith"),
+        ("Generator Winding Test", "Maria Garcia"),
+        ("Turbine Alignment", "Robert Chen"),
     ]:
         await session.execute(
-            action_competence.insert().values(
-                action_id=actions[an].id,
-                competence_id=competences[cn].id,
+            task_worker.insert().values(
+                task_id=tasks[tn].id,
+                worker_id=workers[wname].id,
             )
         )
+    # Level <-> Competence
+    for lname, cnames in [
+        ("Junior Mechanic", ["Safety Procedures", "Pipe Fitting"]),
+        ("Mechanic", ["Safety Procedures", "Pump Maintenance", "Pipe Fitting", "Welding"]),
+        ("Senior Mechanic", ["Pump Maintenance", "Welding", "Pipe Fitting", "Thermal Imaging"]),
+        ("Junior Electrician", ["Safety Procedures", "Electrical Systems"]),
+        ("Electrician", ["Electrical Systems", "PLC Programming"]),
+        ("Senior Electrician", ["Electrical Systems", "PLC Programming", "Thermal Imaging"]),
+        ("Junior Boiler Operator", ["Safety Procedures", "Boiler Operation"]),
+        ("Boiler Operator", ["Boiler Operation", "Safety Procedures"]),
+        ("Senior Boiler Operator", ["Boiler Operation", "Thermal Imaging", "Safety Procedures"]),
+        ("Junior Turbine Engineer", ["Safety Procedures", "Turbine Operation"]),
+        ("Turbine Engineer", ["Turbine Operation", "Vibration Analysis"]),
+        ("Senior Turbine Engineer", ["Vibration Analysis", "Turbine Operation", "Thermal Imaging"]),
+        ("Shift Supervisor I", ["Safety Procedures"]),
+        ("Shift Supervisor II", ["Safety Procedures", "Boiler Operation"]),
+        ("Safety Officer I", ["Safety Procedures"]),
+        ("Safety Officer II", ["Safety Procedures", "Thermal Imaging"]),
+        ("Junior Planner", ["Safety Procedures", "Pipe Fitting"]),
+        ("Maintenance Planner", ["Pipe Fitting", "Boiler Operation"]),
+        ("Instrument Tech I", ["Safety Procedures"]),
+        ("Instrument Tech II", ["Safety Procedures", "PLC Programming", "Thermal Imaging"]),
+    ]:
+        for cn in cnames:
+            await session.execute(
+                level_competence.insert().values(
+                    level_id=levels[lname].id,
+                    competence_id=competences[cn].id,
+                )
+            )
     await session.commit()
     logger.info("Created all association links.")
 
@@ -1409,22 +1483,21 @@ async def run(clean: bool = False) -> None:
         assets = await seed_assets(session)
         sensors = await seed_sensors(session, assets)
         faults = await seed_faults(session, assets)
-        levels = await seed_levels(session)
         competences = await seed_competences(session)
         roles = await seed_roles(session)
+        levels = await seed_levels(session, roles)
         shifts = await seed_shifts(session)
         locations = await seed_locations(session)
         aggregates = await seed_aggregates(session)
         systems = await seed_systems(session)
         workers = await seed_workers(session, competences, levels, shifts)
-        tasks = await seed_tasks(session)
-        actions = await seed_actions(session)
         causes = await seed_causes(session)
         materials = await seed_materials(session)
-        down_events = await seed_down_events(session, assets, causes)
+        maintenance_schedules = await seed_maintenance_schedules(session, assets)
+        tasks = await seed_tasks(session, maintenance_schedules, shifts)
+        down_events = await seed_down_events(session, assets, causes, faults, maintenance_schedules)
         orders = await seed_orders(session, assets)
         await seed_sensor_data(session, sensors)
-        await seed_maintenance_schedules(session, assets, faults)
         await seed_associations(
             session,
             assets,
@@ -1437,7 +1510,8 @@ async def run(clean: bool = False) -> None:
             materials,
             causes,
             roles,
-            actions,
+            maintenance_schedules,
+            levels,
         )
 
     await engine.dispose()

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.models import Pagination, SuccessResponse
 from app.core.database import get_db
@@ -17,6 +18,7 @@ from app.models.schemas import (
     WorkerResponse,
     WorkerUpdate,
 )
+from app.models.worker import Worker
 from app.services import worker_service
 
 router = APIRouter(prefix="/api/v1", tags=["workers"])
@@ -102,7 +104,12 @@ async def list_workers(
 async def get_worker(worker_id: UUID, db: AsyncSession = Depends(get_db)):
     logger.info(f"Getting worker {worker_id}")
 
-    worker = await worker_service.get_worker(db, worker_id)
+    result = await db.execute(
+        select(Worker)
+        .where(Worker.id == worker_id)
+        .options(selectinload(Worker.level).selectinload(Level.role))
+    )
+    worker = result.scalar_one_or_none()
     if not worker:
         raise HTTPException(
             status_code=404,

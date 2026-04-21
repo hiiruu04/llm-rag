@@ -163,12 +163,43 @@ class GraphIngestionService:
                     label=link["cmms_label"],
                 )
 
+        # Step 6: Create direct CMMS -> DocumentChunk relationships
+        entity_id_to_chunks: dict[str, set[int]] = {}
+        for name_key, chunk_id in entity_chunk_map:
+            eid = all_entities[name_key]["entity_id"]
+            entity_id_to_chunks.setdefault(eid, set()).add(chunk_id)
+
+        cmms_chunk_pairs = []
+        for link in cmms_links:
+            for cid in entity_id_to_chunks.get(link["entity_id"], set()):
+                cmms_chunk_pairs.append(
+                    {
+                        "pg_id": link["cmms_pg_id"],
+                        "label": link["cmms_label"],
+                        "chunk_id": cid,
+                    }
+                )
+
+        if cmms_chunk_pairs:
+            async with driver.session(database=settings.neo4j_database) as session:
+                await session.run(
+                    """
+                    UNWIND $pairs AS p
+                    MATCH (c) WHERE c.pg_id = p.pg_id AND p.label IN labels(c)
+                    MATCH (chunk:DocumentChunk {chunk_id: p.chunk_id})
+                    MERGE (c)-[:HAS_DOCUMENT]->(chunk)
+                    """,
+                    pairs=cmms_chunk_pairs,
+                )
+            logger.info(f"Created {len(cmms_chunk_pairs)} HAS_DOCUMENT relationships")
+
         result = {
             "document_id": document_id,
             "chunks_created": len(chunk_ids),
             "entities_created": len(all_entities),
             "relationships_created": len(all_relationships),
             "cmms_links": len(cmms_links),
+            "has_document_links": len(cmms_chunk_pairs),
         }
 
         logger.info(
@@ -176,7 +207,8 @@ class GraphIngestionService:
             f"{result['chunks_created']} chunks, "
             f"{result['entities_created']} entities, "
             f"{result['relationships_created']} relationships, "
-            f"{result['cmms_links']} CMMS links"
+            f"{result['cmms_links']} CMMS links, "
+            f"{result['has_document_links']} HAS_DOCUMENT links"
         )
 
         return result

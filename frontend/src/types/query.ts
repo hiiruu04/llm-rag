@@ -1,8 +1,15 @@
-export type QueryMode = "auto" | "vector" | "graph" | "hybrid";
+export type QueryMode = "auto" | "vector" | "graph" | "graphrag" | "hybrid" | "agent";
+
+export type AgentType = "scheduling" | "competency" | "analyzer" | "recommender";
 
 export interface QueryRequest {
   question: string;
   mode?: QueryMode;
+}
+
+export interface AgentQueryRequest {
+  question: string;
+  agent_type?: AgentType;
 }
 
 export interface Source {
@@ -19,6 +26,19 @@ export interface TokenUsage {
   total: number;
 }
 
+export interface GraphEntity {
+  name: string;
+  entity_type: string;
+  description: string;
+}
+
+export interface CMMSReference {
+  entity_name: string;
+  cmms_label: string;
+  cmms_name: string;
+  cmms_pg_id: number;
+}
+
 export interface QueryData {
   answer: string;
   sources: Source[];
@@ -27,4 +47,7 @@ export interface QueryData {
   graph_sources: Record<string, unknown>[] | null;
   cypher_used: string | null;
   mode_used: string | null;
+  graph_entities: GraphEntity[] | null;
+  cmms_references: CMMSReference[] | null;
+  agent_used: string | null;
 }

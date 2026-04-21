@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/common/loading-state";
 import { ErrorState } from "@/components/common/error-state";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useMaterial, useDeleteMaterial } from "@/api/materials";
+import { useOrder } from "@/api/orders";
 
 export default function MaterialDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export default function MaterialDetailPage() {
 
   const { data: material, isLoading, isError, error, refetch } = useMaterial(id!);
   const deleteMutation = useDeleteMaterial();
+  const { data: order } = useOrder(material?.order_id ?? "");
 
   if (isLoading) return <LoadingState />;
   if (isError || !material) return <ErrorState message={error?.message} onRetry={() => refetch()} />;
@@ -48,6 +50,11 @@ export default function MaterialDetailPage() {
         <DetailCard label="Quantity in Stock" value={material.quantity_in_stock?.toString() ?? "0"} />
         <DetailCard label="Unit" value={material.unit ?? "-"} />
         <DetailCard label="Description" value={material.description ?? "-"} />
+        <DetailCard label="Order" value={
+          material.order_id
+            ? <Link to={`/orders/${material.order_id}`} className="text-primary hover:underline">{order?.order_number ?? material.order_id} - {order?.title ?? ""}</Link>
+            : "-"
+        } />
         <DetailCard label="Created" value={material.created_at ? format(new Date(material.created_at), "PPpp") : "-"} />
         <DetailCard label="Updated" value={material.updated_at ? format(new Date(material.updated_at), "PPpp") : "-"} />
       </div>

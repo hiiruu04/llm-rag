@@ -34,7 +34,7 @@ export default function DownEventsPage() {
   const onSearchChange = useCallback((v: string) => setSearch(v), []);
 
   const filtered = data?.data.filter(
-    (d) => !search || (d.description ?? "").toLowerCase().includes(search.toLowerCase()),
+    (d) => !search || (d.fault_name ?? "").toLowerCase().includes(search.toLowerCase()),
   );
 
   if (isLoading) return <><PageHeader title="Down Events" /><LoadingState /></>;
@@ -55,7 +55,7 @@ export default function DownEventsPage() {
         }
       />
       <FilterBar>
-        <SearchInput value={search} onChange={onSearchChange} placeholder="Search by description..." />
+        <SearchInput value={search} onChange={onSearchChange} placeholder="Search by fault name..." />
         <select
           value={severityFilter}
           onChange={(e) => { setSeverityFilter(e.target.value); setPage(1); }}
@@ -84,9 +84,11 @@ export default function DownEventsPage() {
           keyExtractor={(d) => d.id}
           onRowClick={(d) => navigate(`/down-events/${d.id}`)}
           columns={[
-            { header: "Description", accessor: (d) => d.description ?? "-" },
+            { header: "Fault", accessor: (d) => d.fault_name ?? "-" },
             { header: "Severity", accessor: (d) => <StatusBadge value={d.severity ?? "low"} /> },
             { header: "Status", accessor: (d) => <StatusBadge value={d.status ?? "active"} /> },
+            { header: "Started", accessor: (d) => d.started_at ? new Date(d.started_at).toLocaleString() : "-" },
+            { header: "Ended", accessor: (d) => d.ended_at ? new Date(d.ended_at).toLocaleString() : "-" },
             { header: "Downtime (mins)", accessor: (d) => d.downtime_minutes?.toString() ?? "-" },
             {
               header: "Actions",
@@ -111,7 +113,7 @@ export default function DownEventsPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Down Event"
-        description={`Are you sure you want to delete "${deleteTarget?.description ?? "this down event"}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete this down event? This action cannot be undone.`}
         variant="destructive"
         confirmLabel="Delete"
         onConfirm={() => {

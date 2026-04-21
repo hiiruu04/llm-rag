@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 from pydantic import BaseModel
 
+from app.agents.router import get_agent_router
 from app.api.models import SuccessResponse
 from app.core.graph_rag_pipeline import get_graph_rag_pipeline
 from app.core.graphrag_pipeline import get_graphrag_pipeline
@@ -17,7 +18,12 @@ router = APIRouter(prefix="/api/v1", tags=["query"])
 
 class QueryRequest(BaseModel):
     question: str
-    mode: Literal["auto", "vector", "graph", "graphrag", "hybrid"] = "auto"
+    mode: Literal["auto", "vector", "graph", "graphrag", "hybrid", "agent"] = "auto"
+
+
+class AgentQueryRequest(BaseModel):
+    question: str
+    agent_type: Optional[Literal["scheduling", "competency", "analyzer", "recommender"]] = None
 
 
 class Source(BaseModel):
@@ -48,6 +54,17 @@ class QueryData(BaseModel):
     mode_used: Optional[str] = None
     graph_entities: Optional[list[dict]] = None
     cmms_references: Optional[list[dict]] = None
+    agent_used: Optional[str] = None
+
+
+INTENT_MODE_MAP = {
+    "scheduling": "agent",
+    "competency": "agent",
+    "analysis": "agent",
+    "recommendation": "agent",
+    "status_inquiry": "agent",
+    "documentation": "agent",
+}
 
 
 async def _run_vector_query(question: str) -> dict:
@@ -72,19 +89,29 @@ async def _run_graphrag_query(question: str) -> dict:
     return await graphrag_pipeline.query(question)
 
 
-def _resolve_mode(question: str, mode: str) -> str:
+async def _run_agent_query(question: str, intent: str | None = None) -> dict:
+    agent_router = get_agent_router()
+    response = await agent_router.route(question, intent=intent)
+    return {
+        "answer": response.answer,
+        "sources": response.sources,
+        "graph_entities": response.graph_entities,
+        "cmms_references": response.cmms_references,
+        "mode_used": response.mode_used,
+        "agent_used": response.agent_used,
+        "data_used": response.data_used,
+        "cypher_used": response.cypher_used,
+        "tokens_used": response.tokens_used,
+    }
+
+
+def _resolve_mode(question: str, mode: str) -> tuple[str, str | None]:
     if mode != "auto":
-        return mode
+        return mode, None
     classifier = get_intent_classifier()
     intent = classifier.classify(question)
-    mode_map = {
-        "document_search": "vector",
-        "structured_query": "graph",
-        "hybrid": "hybrid",
-        "graphrag": "graphrag",
-        "general": "vector",
-    }
-    return mode_map.get(intent, "vector")
+    resolved_mode = INTENT_MODE_MAP.get(intent, "agent")
+    return resolved_mode, intent
 
 
 @router.post("/query")
@@ -105,10 +132,12 @@ async def query_documents(request: QueryRequest):
         )
 
     try:
-        mode = _resolve_mode(request.question, request.mode)
-        logger.info(f"Resolved mode: {mode}")
+        mode, intent = _resolve_mode(request.question, request.mode)
+        logger.info(f"Resolved mode: {mode}, intent: {intent}")
 
-        if mode == "graph":
+        if mode == "agent":
+            result = await _run_agent_query(request.question, intent=intent)
+        elif mode == "graph":
             result = await _run_graph_query(request.question)
         elif mode == "hybrid":
             result = await _run_hybrid_query(request.question)
@@ -147,6 +176,7 @@ async def query_documents(request: QueryRequest):
             mode_used=result.get("mode_used", mode),
             graph_entities=result.get("graph_entities"),
             cmms_references=result.get("cmms_references"),
+            agent_used=result.get("agent_used"),
         )
 
         return SuccessResponse.create(
@@ -157,6 +187,81 @@ async def query_documents(request: QueryRequest):
 
     except Exception as e:
         logger.error(f"Error processing query: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "data": None,
+                "meta": {
+                    "status_code": 500,
+                    "details": "Internal server error",
+                    "errors": [str(e)],
+                },
+            },
+        )
+
+
+@router.post("/query/agent")
+async def query_agent(request: AgentQueryRequest):
+    logger.info(
+        f"Received agent query (agent_type={request.agent_type}): {request.question[:100]}..."
+    )
+
+    if not request.question or len(request.question.strip()) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "data": None,
+                "meta": {
+                    "status_code": 400,
+                    "details": "Question cannot be empty",
+                    "errors": ["Question cannot be empty"],
+                },
+            },
+        )
+
+    try:
+        agent_router = get_agent_router()
+        intent = None
+
+        if request.agent_type:
+            intent_map = {
+                "scheduling": "scheduling",
+                "competency": "competency",
+                "analyzer": "analysis",
+                "recommender": "recommendation",
+            }
+            intent = intent_map.get(request.agent_type)
+
+        response = await agent_router.route(request.question, intent=intent)
+
+        data = QueryData(
+            answer=response.answer,
+            sources=[
+                Source(
+                    document_id=src.get("document_id", "unknown"),
+                    filename=src.get("filename", "Unknown"),
+                    chunk_index=src.get("chunk_index", 0),
+                    similarity_score=src.get("similarity_score", 0.0),
+                    preview_text=src.get("preview_text", ""),
+                )
+                for src in response.sources
+            ],
+            graph_entities=response.graph_entities,
+            cmms_references=response.cmms_references,
+            mode_used=response.mode_used,
+            agent_used=response.agent_used,
+            cypher_used=response.cypher_used,
+            tokens_used=response.tokens_used,
+        )
+
+        return SuccessResponse.create(
+            data=data,
+            status_code=200,
+            details=f"Agent query processed by {response.agent_used} agent",
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing agent query: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -264,7 +369,8 @@ async def query_graphrag(request: QueryRequest):
             sources=sources,
             graph_entities=result.get("graph_entities"),
             cmms_references=result.get("cmms_references"),
-            mode_used="graphrag",
+            cypher_used=result.get("cypher_used"),
+            mode_used=result.get("mode_used", "graphrag"),
         )
 
         return SuccessResponse.create(

@@ -1,4 +1,3 @@
-from app.models.action import Action
 from app.models.aggregate import Aggregate
 from app.models.asset import Asset
 from app.models.cause import Cause
@@ -6,17 +5,19 @@ from app.models.competence import Competence
 from app.models.down_event import DownEvent
 from app.models.fault import Fault, fault_cause_effect
 from app.models.graph_associations import (
-    action_competence,
     asset_location,
     asset_system,
     asset_worker_assignment,
     cause_role,
     down_event_cause,
+    level_competence,
+    maintenance_competence,
     order_asset,
     role_task,
     system_aggregate,
     task_competence,
     task_material,
+    task_worker,
     worker_competence,
     worker_shift,
 )
@@ -35,7 +36,6 @@ from app.models.task import Task
 from app.models.worker import Worker
 
 __all__ = [
-    "Action",
     "Aggregate",
     "Asset",
     "Cause",
@@ -57,17 +57,19 @@ __all__ = [
     "Worker",
     # Association tables
     "fault_cause_effect",
-    "action_competence",
+    "maintenance_competence",
     "asset_location",
     "asset_system",
     "asset_worker_assignment",
     "cause_role",
     "down_event_cause",
+    "level_competence",
     "order_asset",
     "role_task",
     "system_aggregate",
     "task_competence",
     "task_material",
+    "task_worker",
     "worker_competence",
     "worker_shift",
 ]

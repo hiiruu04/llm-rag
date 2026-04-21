@@ -1,4 +1,12 @@
+import re
 from typing import Optional
+
+_LUCENE_SPECIAL_CHARS = re.compile(r'[+\-&|!(){}\[\]^"~*?:\\/]')
+
+
+def _escape_lucene_query(term: str) -> str:
+    """Escape Lucene special characters so the term is treated as a literal."""
+    return _LUCENE_SPECIAL_CHARS.sub(r'\\\g<0>', term)
 
 # Predefined Cypher query templates keyed by query_type.
 # Each template function takes extracted entities and returns (cypher, params).
@@ -135,7 +143,7 @@ def maintenance_schedule(entities: dict) -> tuple[str, dict]:
         f"MATCH (a:Asset)-[:HAS_MAINTENANCE]->(m:MaintenanceSchedule) "
         f"{where}"
         f"RETURN a.name AS asset, m.title, m.maintenance_type, m.status, "
-        f"m.priority, m.scheduled_date, m.assigned_to "
+        f"m.priority, m.scheduled_date "
         f"ORDER BY m.scheduled_date LIMIT 50",
         params,
     )
@@ -188,7 +196,7 @@ def statistics(entities: dict) -> tuple[str, dict]:
 def search(entities: dict) -> tuple[str, dict]:
     params = {}
     if entities.get("asset_names"):
-        params["name"] = entities["asset_names"][0]
+        params["name"] = _escape_lucene_query(entities["asset_names"][0])
         return (
             "CALL db.index.fulltext.queryNodes("
             "'asset_name_search', $name) "
@@ -266,7 +274,10 @@ def task_requirements(entities: dict) -> tuple[str, dict]:
             "OPTIONAL MATCH (t)-[:requires]->(c:Competence) "
             "OPTIONAL MATCH (r:Role)-[:enables]->(t) "
             "OPTIONAL MATCH (m:Material)-[:planned_in]->(t) "
+            "OPTIONAL MATCH (t)-[:assigned_to]->(w:Worker) "
+            "OPTIONAL MATCH (t)-[:belongs_to]->(ms:MaintenanceSchedule) "
             "RETURN t.name AS task, t.task_type AS type, t.status AS status, "
+            "t.assigned_to AS assigned_to, ms.title AS schedule, "
             "collect(DISTINCT c.name) AS competences, "
             "collect(DISTINCT r.name) AS roles, "
             "collect(DISTINCT m.name) AS materials",
@@ -291,17 +302,26 @@ def down_event_analysis(entities: dict) -> tuple[str, dict]:
         return (
             "MATCH (a:Asset) WHERE a.name CONTAINS $name "
             "OPTIONAL MATCH (de:DownEvent) WHERE de.asset_id = a.pg_id "
+            "OPTIONAL MATCH (f:Fault)-[:HAS_OCCURRED]->(de) "
+            "OPTIONAL MATCH (de)-[:resolved_by]->(ms:MaintenanceSchedule) "
             "OPTIONAL MATCH (de)-[:has]->(c:Cause)-[:requires]->(r:Role) "
-            "RETURN a.name AS asset, de.started_at AS started, "
+            "RETURN a.name AS asset, f.code AS fault_code, f.name AS fault_name, "
+            "de.started_at AS started, "
             "de.downtime_minutes AS downtime, c.name AS cause, "
-            "c.severity AS severity, r.name AS required_role "
+            "c.severity AS severity, r.name AS required_role, "
+            "ms.title AS maintenance_schedule "
             "ORDER BY de.started_at DESC LIMIT 20",
             params,
         )
     return (
-        "MATCH (de:DownEvent)-[:has]->(c:Cause)-[:requires]->(r:Role) "
+        "MATCH (de:DownEvent) "
+        "OPTIONAL MATCH (f:Fault)-[:HAS_OCCURRED]->(de) "
+        "OPTIONAL MATCH (de)-[:resolved_by]->(ms:MaintenanceSchedule) "
+        "OPTIONAL MATCH (de)-[:has]->(c:Cause)-[:requires]->(r:Role) "
         "RETURN de.started_at AS started, de.downtime_minutes AS downtime, "
-        "de.severity AS severity, c.name AS cause, r.name AS required_role "
+        "de.severity AS severity, f.code AS fault_code, f.name AS fault_name, "
+        "c.name AS cause, r.name AS required_role, "
+        "ms.title AS maintenance_schedule "
         "ORDER BY de.started_at DESC LIMIT 50",
         params,
     )

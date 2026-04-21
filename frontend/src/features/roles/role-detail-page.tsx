@@ -4,8 +4,9 @@ import { format } from "date-fns";
 import { PageHeader } from "@/components/layout/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { ErrorState } from "@/components/common/error-state";
+import { DataTable } from "@/components/common/data-table";
 import { useRole } from "@/api/roles";
-import type { Role } from "@/types/cmms";
+import type { Role, LevelBrief } from "@/types/cmms";
 
 export default function RoleDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +34,7 @@ export default function RoleDetailPage() {
       />
 
       <RoleDetails role={role} />
+      {role.levels && role.levels.length > 0 && <RoleLevelsSection levels={role.levels} />}
     </>
   );
 }
@@ -42,8 +44,29 @@ function RoleDetails({ role }: { role: Role }) {
     <div className="grid gap-4 sm:grid-cols-2">
       <DetailCard label="Name" value={role.name} />
       <DetailCard label="Description" value={role.description ?? "-"} />
+      <DetailCard label="Levels" value={role.level_count ?? 0} />
       <DetailCard label="Created" value={role.created_at ? format(new Date(role.created_at), "PPpp") : "-"} />
       <DetailCard label="Updated" value={role.updated_at ? format(new Date(role.updated_at), "PPpp") : "-"} />
+    </div>
+  );
+}
+
+function RoleLevelsSection({ levels }: { levels: LevelBrief[] }) {
+  return (
+    <div className="mt-8">
+      <h3 className="mb-4 text-lg font-semibold">Levels</h3>
+      <DataTable<LevelBrief>
+        data={levels}
+        keyExtractor={(l) => l.id}
+        onRowClick={(l) => window.location.href = `/levels/${l.id}`}
+        columns={[
+          { header: "Name", accessor: (l) => (
+            <Link to={`/levels/${l.id}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>{l.name}</Link>
+          )},
+          { header: "Rank", accessor: (l) => l.rank },
+          { header: "Description", accessor: (l) => l.description ?? "-" },
+        ]}
+      />
     </div>
   );
 }

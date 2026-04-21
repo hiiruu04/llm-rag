@@ -7,13 +7,15 @@ import { PageHeader } from "@/components/layout/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { ErrorState } from "@/components/common/error-state";
 import { useMaterial, useUpdateMaterial } from "@/api/materials";
+import { useOrders } from "@/api/orders";
 
 const schema = z.object({
   name: z.string().min(1).max(255),
   part_number: z.string().optional(),
   description: z.string().optional(),
-  quantity_in_stock: z.coerce.number().min(0).optional(),
+  quantity_in_stock: z.number().min(0).optional(),
   unit: z.string().optional(),
+  order_id: z.string().optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -23,6 +25,8 @@ export default function MaterialEditPage() {
   const navigate = useNavigate();
   const { data: material, isLoading } = useMaterial(id!);
   const update = useUpdateMaterial();
+  const { data: ordersData } = useOrders({ per_page: 100 });
+  const orders = ordersData?.data ?? [];
 
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
@@ -32,6 +36,7 @@ export default function MaterialEditPage() {
       description: material.description ?? "",
       quantity_in_stock: material.quantity_in_stock ?? 0,
       unit: material.unit ?? "",
+      order_id: material.order_id ?? "",
     } : undefined,
   });
 
@@ -62,13 +67,22 @@ export default function MaterialEditPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium">Quantity in Stock</label>
-            <input type="number" {...register("quantity_in_stock")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
+            <input type="number" {...register("quantity_in_stock", { valueAsNumber: true })} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
             {errors.quantity_in_stock && <p className="mt-1 text-xs text-destructive">{errors.quantity_in_stock.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Unit</label>
             <input {...register("unit")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Order</label>
+          <select {...register("order_id")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">None</option>
+            {orders.map((o) => (
+              <option key={o.id} value={o.id}>{o.order_number ?? o.id} - {o.title}</option>
+            ))}
+          </select>
         </div>
         <div className="flex gap-3 pt-4">
           <button type="submit" disabled={update.isPending} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">

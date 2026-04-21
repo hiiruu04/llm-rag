@@ -62,6 +62,19 @@ export default function LevelsPage() {
             columns={[
               { header: "Name", accessor: "name" },
               { header: "Rank", accessor: (l) => l.rank },
+              { header: "Role", accessor: (l) =>
+                l.role_name ? (
+                  <Link
+                    to={`/roles/${l.role_id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-primary hover:underline"
+                  >
+                    {l.role_name}
+                  </Link>
+                ) : (
+                  "-"
+                ),
+              },
               { header: "Description", accessor: (l) => l.description ?? "-" },
               {
                 header: "Actions",

@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCreateOrder } from "@/api/orders";
+import { useMaintenanceSchedules } from "@/api/maintenance";
 
 const schema = z.object({
   order_number: z.string().optional(),
@@ -14,6 +15,7 @@ const schema = z.object({
   status: z.enum(["open", "in_progress", "completed", "cancelled"]),
   priority: z.enum(["low", "medium", "high", "critical"]),
   requested_date: z.string().optional(),
+  maintenance_schedule_id: z.string().optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -21,6 +23,8 @@ type Form = z.infer<typeof schema>;
 export default function OrderCreatePage() {
   const navigate = useNavigate();
   const create = useCreateOrder();
+  const { data: schedulesData } = useMaintenanceSchedules({ per_page: 100 });
+  const schedules = schedulesData?.data ?? [];
 
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
@@ -86,6 +90,15 @@ export default function OrderCreatePage() {
         <div>
           <label className="mb-1 block text-sm font-medium">Requested Date</label>
           <input {...register("requested_date")} type="date" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Maintenance Schedule</label>
+          <select {...register("maintenance_schedule_id")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">None</option>
+            {schedules.map((s) => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </select>
         </div>
         <div className="flex gap-3 pt-4">
           <button type="submit" disabled={create.isPending} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">

@@ -16,7 +16,6 @@ const schema = z.object({
   priority: z.enum(["low", "medium", "high", "critical"]),
   scheduled_date: z.string().min(1),
   recurrence: z.enum(["none", "daily", "weekly", "monthly", "quarterly", "yearly"]),
-  assigned_to: z.string().optional(),
   estimated_duration_hours: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -39,7 +38,6 @@ export default function ScheduleEditPage() {
       priority: schedule.priority,
       scheduled_date: schedule.scheduled_date ?? "",
       recurrence: schedule.recurrence,
-      assigned_to: schedule.assigned_to ?? "",
       estimated_duration_hours: schedule.estimated_duration_hours?.toString() ?? "",
       notes: schedule.notes ?? "",
     } : undefined,
@@ -117,15 +115,9 @@ export default function ScheduleEditPage() {
             </select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Assigned To</label>
-            <input {...register("assigned_to")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Duration (hours)</label>
-            <input type="number" step="0.5" {...register("estimated_duration_hours")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
-          </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Duration (hours)</label>
+          <input type="number" step="0.5" {...register("estimated_duration_hours")} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Notes</label>

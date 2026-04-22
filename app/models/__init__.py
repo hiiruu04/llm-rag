@@ -1,6 +1,7 @@
 from app.models.aggregate import Aggregate
 from app.models.asset import Asset
 from app.models.cause import Cause
+from app.models.chat import ChatMessage, ChatSession
 from app.models.competence import Competence
 from app.models.down_event import DownEvent
 from app.models.fault import Fault, fault_cause_effect
@@ -39,6 +40,8 @@ __all__ = [
     "Aggregate",
     "Asset",
     "Cause",
+    "ChatMessage",
+    "ChatSession",
     "Competence",
     "DownEvent",
     "Fault",

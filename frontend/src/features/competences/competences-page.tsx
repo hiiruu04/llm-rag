@@ -22,7 +22,7 @@ export default function CompetencesPage() {
 
   const { data, isLoading, isError, error, refetch } = useCompetences({
     page,
-    per_page: 20,
+    per_page: 10,
     category: categoryFilter || undefined,
   });
 

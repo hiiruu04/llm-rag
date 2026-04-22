@@ -3,6 +3,7 @@ from loguru import logger
 from app.agents.analyzer_agent import AnalyzerAgent
 from app.agents.base import AgentResponse
 from app.agents.competency_agent import CompetencyAgent
+from app.agents.orchestrator import get_orchestrator
 from app.agents.recommender_agent import RecommenderAgent
 from app.agents.scheduling_agent import SchedulingAgent
 from app.services.entity_extractor import get_entity_extractor
@@ -38,9 +39,19 @@ class AgentRouter:
                 raise ValueError(f"Unknown agent: {agent_name}")
         return self._agents[agent_name]
 
-    async def route(self, question: str, intent: str | None = None) -> AgentResponse:
+    async def route(
+        self, question: str, intent: str | None = None, history: list[dict] | None = None
+    ) -> AgentResponse:
         if intent is None:
-            intent = self._intent_classifier.classify(question)
+            single_intent, multi_agents = self._intent_classifier.classify_multi(question)
+            if multi_agents:
+                entities = self._entity_extractor.extract(question)
+                orchestrator = get_orchestrator()
+                logger.info(f"Routing question to orchestrator with agents: {multi_agents}")
+                return await orchestrator.orchestrate(
+                    question, entities, multi_agents, history=history
+                )
+            intent = single_intent or self._intent_classifier.classify(question)
 
         agent_name = INTENT_AGENT_MAP.get(intent)
         if not agent_name:
@@ -52,7 +63,7 @@ class AgentRouter:
         agent = self._get_agent(agent_name)
         logger.info(f"Routing question to {agent_name} agent (intent={intent})")
 
-        response = await agent.handle(question, entities)
+        response = await agent.handle(question, entities, history=history)
         return response
 
 

@@ -16,12 +16,13 @@ class Task(Base):
     estimated_duration_hours = Column(Float)
     doc_link = Column(String(500))
     maintenance_schedule_id = Column(
-        UUID(as_uuid=True), ForeignKey("maintenance_schedules.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("maintenance_schedules.id", ondelete="CASCADE"),
+        nullable=False,
     )
     shift_id = Column(
         UUID(as_uuid=True), ForeignKey("shifts.id", ondelete="SET NULL"), nullable=True
     )
-    assigned_to = Column(String(255), nullable=True)
     action_type = Column(String(100), nullable=False, default="standard")
     sequence_order = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -44,7 +45,7 @@ class Task(Base):
             "doc_link": self.doc_link,
             "maintenance_schedule_id": str(self.maintenance_schedule_id),
             "shift_id": str(self.shift_id) if self.shift_id else None,
-            "assigned_to": self.assigned_to,
+            "worker_ids": [str(w.id) for w in self.workers] if self.workers else [],
             "action_type": self.action_type,
             "sequence_order": self.sequence_order,
             "created_at": self.created_at.isoformat() if self.created_at else None,

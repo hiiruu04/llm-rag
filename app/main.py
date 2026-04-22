@@ -8,6 +8,7 @@ from app.api.routes import (
     aggregates,
     assets,
     causes,
+    chats,
     competences,
     documents,
     down_events,
@@ -36,6 +37,14 @@ from app.core.neo4j import close_neo4j_driver
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up application")
+    try:
+        from app.services.graph_sync_service import get_graph_sync_service
+
+        sync_service = get_graph_sync_service()
+        result = await sync_service.full_sync()
+        logger.info(f"Startup graph sync: {result}")
+    except Exception as e:
+        logger.warning(f"Startup graph sync failed (non-fatal): {e}")
     yield
     logger.info("Shutting down application")
     await close_neo4j_driver()
@@ -60,6 +69,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(documents.router)
 app.include_router(query.router)
+app.include_router(chats.router)
 app.include_router(assets.router)
 app.include_router(sensors.router)
 app.include_router(sensor_data.router)

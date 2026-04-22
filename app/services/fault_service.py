@@ -46,6 +46,37 @@ async def list_faults(
     return faults, total
 
 
+async def list_all_faults(
+    db: AsyncSession,
+    asset_id: Optional[UUID] = None,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 10,
+) -> tuple[list[Fault], int]:
+    conditions = []
+    if asset_id is not None:
+        conditions.append(Fault.asset_id == asset_id)
+    if severity is not None:
+        conditions.append(Fault.severity == severity)
+    if status is not None:
+        conditions.append(Fault.status == status)
+
+    count_query = select(func.count(Fault.id))
+    data_query = select(Fault).order_by(Fault.detected_at.desc())
+
+    for condition in conditions:
+        count_query = count_query.where(condition)
+        data_query = data_query.where(condition)
+
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    result = await db.execute(data_query.offset((page - 1) * per_page).limit(per_page))
+    faults = list(result.scalars().all())
+    return faults, total
+
+
 async def update_fault(db: AsyncSession, fault: Fault, data: FaultUpdate) -> Fault:
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():

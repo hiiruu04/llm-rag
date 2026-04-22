@@ -73,7 +73,7 @@ created_at, updated_at
 - Level: pg_id, name, rank, description, created_at, updated_at
 - Task: pg_id, name, description, task_type, status, \
 estimated_duration_hours, doc_link, maintenance_schedule_id, \
-shift_id, assigned_to, action_type, sequence_order, \
+shift_id, action_type, sequence_order, \
 created_at, updated_at
 - Cause: pg_id, name, description, category, severity, \
 created_at, updated_at

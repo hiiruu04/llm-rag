@@ -199,6 +199,13 @@ class MaintenanceScheduleResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
 
+class MaintenanceScheduleDetailResponse(MaintenanceScheduleResponse):
+    asset: Optional[dict] = None
+    down_events: list[dict] = []
+    order: Optional[dict] = None
+    tasks: list[dict] = []
+
+
 # --- New Entity Literal Enums ---
 
 WorkerStatus = Literal["active", "inactive", "on_leave"]
@@ -341,7 +348,7 @@ class TaskCreate(BaseModel):
     doc_link: Optional[str] = Field(None, max_length=500)
     maintenance_schedule_id: UUID
     shift_id: Optional[UUID] = None
-    assigned_to: Optional[str] = Field(None, max_length=255)
+    worker_ids: Optional[list[UUID]] = None
     action_type: str = Field("standard", max_length=100)
     sequence_order: int = 0
 
@@ -355,7 +362,7 @@ class TaskUpdate(BaseModel):
     doc_link: Optional[str] = Field(None, max_length=500)
     maintenance_schedule_id: Optional[UUID] = None
     shift_id: Optional[UUID] = None
-    assigned_to: Optional[str] = Field(None, max_length=255)
+    worker_ids: Optional[list[UUID]] = None
     action_type: Optional[str] = Field(None, max_length=100)
     sequence_order: Optional[int] = None
 
@@ -370,12 +377,11 @@ class TaskResponse(BaseModel):
     doc_link: Optional[str]
     maintenance_schedule_id: UUID
     shift_id: Optional[UUID] = None
-    assigned_to: Optional[str] = None
+    worker_ids: Optional[list[UUID]] = None
     action_type: str
     sequence_order: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
 
 
 # --- Cause Schemas ---
@@ -609,5 +615,50 @@ class AggregateResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# --- Chat Session Schemas ---
+
+
+class ChatSessionCreate(BaseModel):
+    title: Optional[str] = Field(None, max_length=255)
+    mode: Literal["auto", "vector", "graph", "graphrag", "hybrid", "agent"] = "auto"
+
+
+class ChatSessionUpdate(BaseModel):
+    title: Optional[str] = Field(None, max_length=255)
+
+
+class ChatSessionResponse(BaseModel):
+    id: UUID
+    title: Optional[str]
+    mode: str
+    message_count: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class ChatMessageCreate(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str = Field(..., min_length=1)
+    metadata_: Optional[dict] = None
+
+
+class ChatMessageResponse(BaseModel):
+    id: UUID
+    session_id: UUID
+    role: str
+    content: str
+    metadata_: Optional[dict] = None
+    created_at: Optional[datetime] = None
+
+
+class ChatSessionDetailResponse(BaseModel):
+    id: UUID
+    title: Optional[str]
+    mode: str
+    messages: list[ChatMessageResponse] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

@@ -21,7 +21,7 @@ export default function LevelsPage() {
 
   const { data, isLoading, isError, error, refetch } = useLevels({
     page,
-    per_page: 20,
+    per_page: 10,
   });
 
   const deleteMutation = useDeleteLevel();

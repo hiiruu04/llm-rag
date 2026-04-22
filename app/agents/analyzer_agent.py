@@ -1,6 +1,6 @@
 from loguru import logger
 
-from app.agents.base import Agent, AgentResponse
+from app.agents.base import Agent, AgentResponse, _get_mutations_for_agent
 from app.services.cypher_templates import get_template
 from app.services.kpi_service import (
     compute_kpi_summary,
@@ -26,6 +26,16 @@ When answering:
 5. Provide actionable insights based on the data.
 6. For status inquiries, give a comprehensive overview of the current state.
 
+IMPORTANT - TOOL CALL RULES:
+- When the user asks you to log an event, close an event, or update fault severity, \
+use the available tool calls to execute the action immediately. Do NOT just describe what \
+command to run.
+- All id parameters (asset_id, fault_id, down_event_id) MUST be valid UUID strings in \
+the format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx. Do NOT pass names, numbers, or other \
+non-UUID values.
+- Always extract the exact UUID from the context data above. If you cannot find a UUID \
+in the context, tell the user you don't have the ID and ask them to provide it.
+
 Context data:
 {context}
 
@@ -36,9 +46,23 @@ class AnalyzerAgent(Agent):
     def get_system_prompt(self) -> str:
         return ANALYZER_SYSTEM_PROMPT
 
-    async def handle(self, question: str, entities: dict) -> AgentResponse:
+    @property
+    def agent_name(self) -> str:
+        return "analyzer"
+
+    def _gather_methods(self) -> list[tuple[str, callable]]:
+        return [
+            ("kpi_metrics", self._gather_kpi_data),
+            ("down_events", self._gather_down_event_data),
+            ("faults", self._gather_fault_data),
+            ("sensors", self._gather_sensor_data),
+            ("statistics", self._gather_statistics),
+        ]
+
+    async def handle(
+        self, question: str, entities: dict, history: list[dict] | None = None
+    ) -> AgentResponse:
         logger.info("AnalyzerAgent handling: {}...", question[:80])
-        agent_name = "analyzer"
         data_used = []
 
         context_parts = []
@@ -73,13 +97,22 @@ class AnalyzerAgent(Agent):
         )
 
         system_prompt = self.get_system_prompt()
-        answer = self.generate_answer(system_prompt, context, question)
+        tools = _get_mutations_for_agent("analyzer")
+        mutations = []
+
+        if tools:
+            answer, mutations = await self.execute_agentic_loop(
+                "analyzer", system_prompt, context, question, tools, history=history
+            )
+        else:
+            answer = self.generate_answer(system_prompt, context, question, history=history)
 
         return AgentResponse(
             answer=answer,
             mode_used="agent",
-            agent_used=agent_name,
+            agent_used="analyzer",
             data_used=data_used,
+            mutations=mutations,
         )
 
     async def _gather_kpi_data(self, entities: dict) -> str:

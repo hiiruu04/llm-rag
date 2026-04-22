@@ -11,6 +11,8 @@ from app.models import (  # noqa: F401
     Aggregate,
     Asset,
     Cause,
+    ChatMessage,
+    ChatSession,
     Competence,
     DownEvent,
     Fault,

@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Clock, Trash2, Cpu, Bot } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
-import { useQueryRAG, useAgentQuery } from "@/api/query";
-import { useQueryHistoryStore } from "@/stores/query-history-store";
+import { Send, Clock, Trash2, Plus, Cpu, Bot } from "lucide-react";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { useQueryRAG } from "@/api/query";
+import { useChatSessions, useChatSession, useDeleteChatSession } from "@/api/chats";
+import { useChatStore } from "@/stores/chat-store";
 import type { QueryMode, QueryData } from "@/types/query";
+import type { ChatMessage } from "@/types/chat";
 
 interface Message {
   id: string;
@@ -25,10 +27,10 @@ const modes: { value: QueryMode; label: string }[] = [
 ];
 
 const agentIcons: Record<string, string> = {
-  scheduling: "🗓️",
-  competency: "🎯",
-  analyzer: "📊",
-  recommender: "💡",
+  scheduling: "\u{1F5D3}\uFE0F",
+  competency: "\u{1F3AF}",
+  analyzer: "\u{1F4CA}",
+  recommender: "\u{1F4A1}",
 };
 
 export default function QueryPage() {
@@ -37,14 +39,37 @@ export default function QueryPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const queryRagMutation = useQueryRAG();
-  const agentMutation = useAgentQuery();
-  const history = useQueryHistoryStore();
+  const { activeSessionId, setActiveSession, clearActiveSession } = useChatStore();
 
-  const isPending = queryRagMutation.isPending || agentMutation.isPending;
+  const deleteSession = useDeleteChatSession();
+  const { data: sessionsData } = useChatSessions();
+  const { data: sessionDetail } = useChatSession(activeSessionId);
+
+  const isPending = queryRagMutation.isPending;
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (sessionDetail?.messages) {
+      const loaded: Message[] = sessionDetail.messages.map((m: ChatMessage) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        data: m.metadata_ ? (m.metadata_ as unknown as QueryData) : undefined,
+        mode: (m.metadata_ as Record<string, unknown>)?.mode_used as QueryMode | undefined,
+      }));
+      setMessages(loaded);
+    }
+  }, [sessionDetail]);
+
+  const handleNewChat = useCallback(() => {
+    setMessages([]);
+    clearActiveSession();
+    setQuestion("");
+  }, [clearActiveSession]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,13 +87,12 @@ export default function QueryPage() {
         mode,
       };
       setMessages((prev) => [...prev, assistantMsg]);
-      history.add({
-        question,
-        mode,
-        answer: data.answer,
-        modeUsed: data.mode_used,
-        agentUsed: data.agent_used ?? null,
-      });
+
+      if (data.session_id) {
+        if (!activeSessionId) {
+          setActiveSession(data.session_id);
+        }
+      }
       setQuestion("");
     };
 
@@ -81,38 +105,102 @@ export default function QueryPage() {
       setMessages((prev) => [...prev, errMsg]);
     };
 
-    if (mode === "agent" || mode === "auto") {
-      queryRagMutation.mutate({ question, mode }, { onSuccess, onError });
-    } else {
-      queryRagMutation.mutate({ question, mode }, { onSuccess, onError });
+    queryRagMutation.mutate(
+      { question, mode, session_id: activeSessionId ?? undefined },
+      { onSuccess, onError },
+    );
+  };
+
+  const confirmDeleteSession = (id: string) => {
+    if (id === activeSessionId) {
+      handleNewChat();
     }
+    deleteSession.mutate(id);
+    setDeleteTarget(null);
   };
 
   return (
     <>
-      <PageHeader title="AI Query" description="Ask questions about your CMMS data" />
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Chat Session"
+        description="Are you sure you want to delete this chat session? This action cannot be undone and all messages will be permanently removed."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => deleteTarget && confirmDeleteSession(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-        {/* Chat Area */}
-        <div className="flex flex-col rounded-lg border border-border">
-          {/* Mode Selector */}
-          <div className="flex items-center gap-2 border-b border-border p-3 flex-wrap">
+      <div className="flex h-[calc(100vh-4rem)] -m-6">
+        {/* Chat Sessions Sidebar */}
+        <div className="hidden lg:flex w-64 shrink-0 flex-col border-r border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border p-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <Clock className="h-4 w-4" /> Sessions
+            </h3>
+            <button
+              onClick={handleNewChat}
+              className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-3 w-3" /> New
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {(!sessionsData?.sessions || sessionsData.sessions.length === 0) && (
+              <p className="px-2 py-4 text-center text-xs text-muted-foreground">No sessions yet</p>
+            )}
+            {sessionsData?.sessions?.map((session) => (
+              <div
+                key={session.id}
+                className={`group flex items-start justify-between rounded-md p-2 text-left text-xs hover:bg-accent cursor-pointer transition-colors ${
+                  session.id === activeSessionId ? "bg-accent border border-primary/30" : ""
+                }`}
+                onClick={() => setActiveSession(session.id)}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    {session.title || "Untitled"}
+                  </p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    {session.mode} &middot; {session.message_count} msgs
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(session.id); }}
+                  className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Chat Area - Full height */}
+        <div className="flex flex-1 flex-col min-w-0">
+          {/* Mode Selector Bar */}
+          <div className="flex items-center gap-2 border-b border-border px-4 py-2">
             <span className="text-xs font-medium text-muted-foreground">Mode:</span>
             {modes.map((m) => (
               <button
                 key={m.value}
                 onClick={() => setMode(m.value)}
-                className={`rounded-md px-3 py-1 text-xs ${
+                className={`rounded-md px-3 py-1 text-xs transition-colors ${
                   mode === m.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
                 }`}
               >
                 {m.label}
               </button>
             ))}
+            {activeSessionId && (
+              <span className="ml-auto text-xs text-muted-foreground">
+                Session active
+              </span>
+            )}
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[60vh] min-h-[300px]">
+          {/* Messages - Fill available space */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="flex h-full items-center justify-center text-muted-foreground">
                 <p className="text-sm">Ask a question to get started...</p>
@@ -182,7 +270,7 @@ export default function QueryPage() {
                             {msg.data.cmms_references.map((ref, i) => (
                               <div key={i} className="rounded bg-background p-2">
                                 <span className="font-medium">{ref.entity_name}</span>
-                                {" → "}
+                                {" \u2192 "}
                                 <span>{ref.cmms_label}: {ref.cmms_name}</span>
                                 {ref.cmms_pg_id && <span className="text-muted-foreground"> (ID: {ref.cmms_pg_id})</span>}
                               </div>
@@ -221,7 +309,7 @@ export default function QueryPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
+          {/* Input - Fixed at bottom */}
           <form onSubmit={handleSubmit} className="flex gap-2 border-t border-border p-3">
             <input
               value={question}
@@ -237,39 +325,6 @@ export default function QueryPage() {
               <Send className="h-4 w-4" />
             </button>
           </form>
-        </div>
-
-        {/* Query History Sidebar */}
-        <div className="rounded-lg border border-border p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <Clock className="h-4 w-4" /> History
-            </h3>
-            {history.entries.length > 0 && (
-              <button onClick={() => history.clear()} className="text-xs text-muted-foreground hover:text-destructive">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {history.entries.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No queries yet</p>
-            ) : (
-              history.entries.map((entry) => (
-                <button
-                  key={entry.id}
-                  onClick={() => { setQuestion(entry.question); setMode(entry.mode); }}
-                  className="w-full rounded-md p-2 text-left text-xs hover:bg-accent"
-                >
-                  <p className="truncate font-medium">{entry.question}</p>
-                  <p className="mt-0.5 text-muted-foreground">
-                    {entry.mode} — {entry.modeUsed && `used ${entry.modeUsed}`}
-                    {entry.agentUsed && ` via ${entry.agentUsed}`}
-                  </p>
-                </button>
-              ))
-            )}
-          </div>
         </div>
       </div>
     </>

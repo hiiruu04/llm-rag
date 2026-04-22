@@ -21,7 +21,7 @@ export default function RolesPage() {
 
   const { data, isLoading, isError, error, refetch } = useRoles({
     page,
-    per_page: 20,
+    per_page: 10,
   });
 
   const deleteMutation = useDeleteRole();

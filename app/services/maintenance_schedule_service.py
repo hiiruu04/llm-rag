@@ -4,9 +4,12 @@ from uuid import UUID
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.models.down_event import DownEvent
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.schemas import MaintenanceScheduleCreate, MaintenanceScheduleUpdate
+from app.models.task import Task
 
 RECURRENCE_DELTAS: dict[str, timedelta] = {
     "daily": timedelta(days=1),
@@ -44,6 +47,22 @@ async def get_schedule(db: AsyncSession, schedule_id: UUID) -> Optional[Maintena
     return schedule if (schedule := result.scalar_one_or_none()) else None
 
 
+async def get_schedule_detail(
+    db: AsyncSession, schedule_id: UUID
+) -> Optional[MaintenanceSchedule]:
+    result = await db.execute(
+        select(MaintenanceSchedule)
+        .where(MaintenanceSchedule.id == schedule_id)
+        .options(
+            selectinload(MaintenanceSchedule.asset),
+            selectinload(MaintenanceSchedule.down_events).selectinload(DownEvent.fault),
+            selectinload(MaintenanceSchedule.order),
+            selectinload(MaintenanceSchedule.tasks).selectinload(Task.workers),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_schedules(
     db: AsyncSession,
     asset_id: Optional[UUID] = None,
@@ -73,9 +92,7 @@ async def list_schedules(
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
-    result = await db.execute(
-        data_query.offset((page - 1) * per_page).limit(per_page)
-    )
+    result = await db.execute(data_query.offset((page - 1) * per_page).limit(per_page))
     schedules = list(result.scalars().all())
     return schedules, total
 
@@ -96,9 +113,7 @@ async def delete_schedule(db: AsyncSession, schedule: MaintenanceSchedule) -> No
     await db.commit()
 
 
-async def mark_completed(
-    db: AsyncSession, schedule: MaintenanceSchedule
-) -> MaintenanceSchedule:
+async def mark_completed(db: AsyncSession, schedule: MaintenanceSchedule) -> MaintenanceSchedule:
     schedule.status = "completed"
     schedule.completed_date = datetime.now(timezone.utc)
     await db.commit()
@@ -126,9 +141,7 @@ async def get_overdue_schedules(
     db: AsyncSession, page: int = 1, per_page: int = 10
 ) -> tuple[list[MaintenanceSchedule], int]:
     count_result = await db.execute(
-        select(func.count(MaintenanceSchedule.id)).where(
-            MaintenanceSchedule.status == "overdue"
-        )
+        select(func.count(MaintenanceSchedule.id)).where(MaintenanceSchedule.status == "overdue")
     )
     total = count_result.scalar() or 0
 

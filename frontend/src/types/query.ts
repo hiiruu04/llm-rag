@@ -5,11 +5,13 @@ export type AgentType = "scheduling" | "competency" | "analyzer" | "recommender"
 export interface QueryRequest {
   question: string;
   mode?: QueryMode;
+  session_id?: string;
 }
 
 export interface AgentQueryRequest {
   question: string;
   agent_type?: AgentType;
+  session_id?: string;
 }
 
 export interface Source {
@@ -50,4 +52,5 @@ export interface QueryData {
   graph_entities: GraphEntity[] | null;
   cmms_references: CMMSReference[] | null;
   agent_used: string | null;
+  session_id: string | null;
 }

@@ -24,7 +24,7 @@ export default function CausesPage() {
 
   const { data, isLoading, isError, error, refetch } = useCauses({
     page,
-    per_page: 20,
+    per_page: 10,
     severity: severityFilter || undefined,
     category: categoryFilter || undefined,
   });

@@ -31,7 +31,16 @@ class CompetencyAgent(Agent):
     def get_system_prompt(self) -> str:
         return COMPETENCY_SYSTEM_PROMPT
 
-    async def handle(self, question: str, entities: dict) -> AgentResponse:
+    def _gather_methods(self) -> list[tuple[str, callable]]:
+        return [
+            ("competences", self._gather_competence_data),
+            ("availability", self._gather_availability_data),
+            ("task_requirements", self._gather_task_requirements),
+        ]
+
+    async def handle(
+        self, question: str, entities: dict, history: list[dict] | None = None
+    ) -> AgentResponse:
         logger.info("CompetencyAgent handling: {}...", question[:80])
         agent_name = "competency"
         data_used = []
@@ -58,7 +67,7 @@ class CompetencyAgent(Agent):
         )
 
         system_prompt = self.get_system_prompt()
-        answer = self.generate_answer(system_prompt, context, question)
+        answer = self.generate_answer(system_prompt, context, question, history=history)
 
         return AgentResponse(
             answer=answer,

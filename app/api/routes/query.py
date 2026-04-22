@@ -1,16 +1,21 @@
 import asyncio
 from typing import Literal, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.router import get_agent_router
 from app.api.models import SuccessResponse
+from app.core.database import get_db
 from app.core.graph_rag_pipeline import get_graph_rag_pipeline
 from app.core.graphrag_pipeline import get_graphrag_pipeline
 from app.core.hybrid_pipeline import get_hybrid_pipeline
 from app.core.rag_pipeline import get_rag_pipeline
+from app.models.schemas import ChatMessageCreate, ChatSessionCreate
+from app.services import chat_service
 from app.services.intent_classifier import get_intent_classifier
 
 router = APIRouter(prefix="/api/v1", tags=["query"])
@@ -19,11 +24,13 @@ router = APIRouter(prefix="/api/v1", tags=["query"])
 class QueryRequest(BaseModel):
     question: str
     mode: Literal["auto", "vector", "graph", "graphrag", "hybrid", "agent"] = "auto"
+    session_id: Optional[str] = None
 
 
 class AgentQueryRequest(BaseModel):
     question: str
     agent_type: Optional[Literal["scheduling", "competency", "analyzer", "recommender"]] = None
+    session_id: Optional[str] = None
 
 
 class Source(BaseModel):
@@ -55,6 +62,8 @@ class QueryData(BaseModel):
     graph_entities: Optional[list[dict]] = None
     cmms_references: Optional[list[dict]] = None
     agent_used: Optional[str] = None
+    session_id: Optional[str] = None
+    mutations: list[dict] = []
 
 
 INTENT_MODE_MAP = {
@@ -89,9 +98,11 @@ async def _run_graphrag_query(question: str) -> dict:
     return await graphrag_pipeline.query(question)
 
 
-async def _run_agent_query(question: str, intent: str | None = None) -> dict:
+async def _run_agent_query(
+    question: str, intent: str | None = None, history: list[dict] | None = None
+) -> dict:
     agent_router = get_agent_router()
-    response = await agent_router.route(question, intent=intent)
+    response = await agent_router.route(question, intent=intent, history=history)
     return {
         "answer": response.answer,
         "sources": response.sources,
@@ -102,6 +113,7 @@ async def _run_agent_query(question: str, intent: str | None = None) -> dict:
         "data_used": response.data_used,
         "cypher_used": response.cypher_used,
         "tokens_used": response.tokens_used,
+        "mutations": response.mutations,
     }
 
 
@@ -115,7 +127,7 @@ def _resolve_mode(question: str, mode: str) -> tuple[str, str | None]:
 
 
 @router.post("/query")
-async def query_documents(request: QueryRequest):
+async def query_documents(request: QueryRequest, db: AsyncSession = Depends(get_db)):
     logger.info(f"Received query (mode={request.mode}): {request.question[:100]}...")
 
     if not request.question or len(request.question.strip()) == 0:
@@ -131,12 +143,28 @@ async def query_documents(request: QueryRequest):
             },
         )
 
+    session_id = None
+    history = None
+
+    if request.session_id:
+        try:
+            session_id = UUID(request.session_id)
+            session = await chat_service.get_session(db, session_id)
+            if session:
+                recent_messages = await chat_service.get_recent_messages(db, session_id)
+                history = chat_service.format_history_for_llm(recent_messages)
+            else:
+                session_id = None
+        except Exception as e:
+            logger.warning(f"Failed to load session {request.session_id}: {e}")
+            session_id = None
+
     try:
         mode, intent = _resolve_mode(request.question, request.mode)
         logger.info(f"Resolved mode: {mode}, intent: {intent}")
 
         if mode == "agent":
-            result = await _run_agent_query(request.question, intent=intent)
+            result = await _run_agent_query(request.question, intent=intent, history=history)
         elif mode == "graph":
             result = await _run_graph_query(request.question)
         elif mode == "hybrid":
@@ -166,6 +194,45 @@ async def query_documents(request: QueryRequest):
                 total=tokens_used_data.get("total", 0),
             )
 
+        result_session_id = str(session_id) if session_id else None
+
+        if not session_id:
+            try:
+                session = await chat_service.create_session(
+                    db,
+                    ChatSessionCreate(
+                        title=request.question[:50],
+                        mode=request.mode,
+                    ),
+                )
+                session_id = session.id
+                result_session_id = str(session_id)
+            except Exception as e:
+                logger.warning(f"Failed to create session: {e}")
+
+        if session_id:
+            try:
+                await chat_service.add_message(
+                    db,
+                    session_id,
+                    ChatMessageCreate(role="user", content=request.question),
+                )
+                await chat_service.add_message(
+                    db,
+                    session_id,
+                    ChatMessageCreate(
+                        role="assistant",
+                        content=result["answer"],
+                        metadata_={
+                            "mode_used": result.get("mode_used", mode),
+                            "agent_used": result.get("agent_used"),
+                            "data_used": result.get("data_used", []),
+                        },
+                    ),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to persist messages: {e}")
+
         data = QueryData(
             answer=result["answer"],
             sources=sources,
@@ -177,6 +244,8 @@ async def query_documents(request: QueryRequest):
             graph_entities=result.get("graph_entities"),
             cmms_references=result.get("cmms_references"),
             agent_used=result.get("agent_used"),
+            session_id=result_session_id,
+            mutations=result.get("mutations", []),
         )
 
         return SuccessResponse.create(
@@ -201,7 +270,7 @@ async def query_documents(request: QueryRequest):
 
 
 @router.post("/query/agent")
-async def query_agent(request: AgentQueryRequest):
+async def query_agent(request: AgentQueryRequest, db: AsyncSession = Depends(get_db)):
     logger.info(
         f"Received agent query (agent_type={request.agent_type}): {request.question[:100]}..."
     )
@@ -219,6 +288,22 @@ async def query_agent(request: AgentQueryRequest):
             },
         )
 
+    session_id = None
+    history = None
+
+    if request.session_id:
+        try:
+            session_id = UUID(request.session_id)
+            session = await chat_service.get_session(db, session_id)
+            if session:
+                recent_messages = await chat_service.get_recent_messages(db, session_id)
+                history = chat_service.format_history_for_llm(recent_messages)
+            else:
+                session_id = None
+        except Exception as e:
+            logger.warning(f"Failed to load session {request.session_id}: {e}")
+            session_id = None
+
     try:
         agent_router = get_agent_router()
         intent = None
@@ -232,7 +317,43 @@ async def query_agent(request: AgentQueryRequest):
             }
             intent = intent_map.get(request.agent_type)
 
-        response = await agent_router.route(request.question, intent=intent)
+        response = await agent_router.route(request.question, intent=intent, history=history)
+
+        if not session_id:
+            try:
+                session = await chat_service.create_session(
+                    db,
+                    ChatSessionCreate(
+                        title=request.question[:50],
+                        mode="agent",
+                    ),
+                )
+                session_id = session.id
+            except Exception as e:
+                logger.warning(f"Failed to create session: {e}")
+
+        if session_id:
+            try:
+                await chat_service.add_message(
+                    db,
+                    session_id,
+                    ChatMessageCreate(role="user", content=request.question),
+                )
+                await chat_service.add_message(
+                    db,
+                    session_id,
+                    ChatMessageCreate(
+                        role="assistant",
+                        content=response.answer,
+                        metadata_={
+                            "mode_used": response.mode_used,
+                            "agent_used": response.agent_used,
+                            "data_used": response.data_used,
+                        },
+                    ),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to persist messages: {e}")
 
         data = QueryData(
             answer=response.answer,
@@ -252,6 +373,8 @@ async def query_agent(request: AgentQueryRequest):
             agent_used=response.agent_used,
             cypher_used=response.cypher_used,
             tokens_used=response.tokens_used,
+            session_id=str(session_id) if session_id else None,
+            mutations=response.mutations,
         )
 
         return SuccessResponse.create(

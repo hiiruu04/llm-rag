@@ -24,7 +24,7 @@ export default function AssetsPage() {
 
   const { data, isLoading, isError, error, refetch } = useAssets({
     page,
-    per_page: 20,
+    per_page: 10,
     status: statusFilter || undefined,
   });
 

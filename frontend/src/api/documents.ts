@@ -1,18 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, paginatedGet } from "@/lib/api-client";
 import type { DocumentInfo } from "@/types/document";
 
 export function useDocuments(params?: { page?: number; per_page?: number }) {
   return useQuery({
     queryKey: ["documents", params],
-    queryFn: async () => {
-      const res = await apiClient.get<{ documents: DocumentInfo[] }>("/api/v1/documents", { params });
-      const pagination = res.headers["x-pagination"];
-      return {
-        documents: res.data.documents,
-        pagination: pagination ? JSON.parse(pagination as string) : null,
-      };
-    },
+    queryFn: () => paginatedGet<DocumentInfo>("/api/v1/documents", params),
   });
 }
 

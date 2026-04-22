@@ -9,6 +9,7 @@ from app.api.models import Pagination, SuccessResponse
 from app.core.database import get_db
 from app.models.schemas import (
     MaintenanceScheduleCreate,
+    MaintenanceScheduleDetailResponse,
     MaintenanceScheduleResponse,
     MaintenanceScheduleUpdate,
 )
@@ -243,6 +244,31 @@ async def detect_overdue(db: AsyncSession = Depends(get_db)):
                 },
             },
         )
+
+
+@router.get("/maintenance-schedules/{schedule_id}/detail")
+async def get_schedule_detail(schedule_id: UUID, db: AsyncSession = Depends(get_db)):
+    logger.info(f"Getting maintenance schedule detail {schedule_id}")
+
+    schedule = await schedule_service.get_schedule_detail(db, schedule_id)
+    if not schedule:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "data": None,
+                "meta": {
+                    "status_code": 404,
+                    "details": "Maintenance schedule not found",
+                    "errors": [f"Schedule {schedule_id} does not exist"],
+                },
+            },
+        )
+
+    return SuccessResponse.create(
+        data=MaintenanceScheduleDetailResponse(**schedule.to_dict(include_relations=True)),
+        status_code=200,
+        details="Maintenance schedule detail retrieved",
+    )
 
 
 @router.get("/maintenance-schedules/{schedule_id}")

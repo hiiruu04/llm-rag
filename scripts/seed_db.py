@@ -878,7 +878,7 @@ async def seed_tasks(session, maintenance_schedules, shifts):
     if count and count > 0:
         return {t.name: t for t in (await session.scalars(select(Task))).all()}
     tasks = {}
-    # (name, desc, ttype, st, hrs, doc, schedule_title, shift_name, assigned_to, action_type, seq_order)
+    # (name, desc, ttype, st, hrs, doc, schedule_title, shift_name, action_type, seq_order)
     task_specs = [
         (
             "Bearing Replacement",
@@ -889,11 +889,21 @@ async def seed_tasks(session, maintenance_schedules, shifts):
             "/docs/bearing-replace.pdf",
             "Turbine Bearing Replacement",
             "Morning Shift",
-            "Mechanical Team",
             "repair",
             0,
         ),
-        ("Safety Valve Testing", "Test safety valves", "inspection", "pending", 4.0, None, "Safety Valve Calibration", "Morning Shift", "Instrumentation Team", "inspection", 0),
+        (
+            "Safety Valve Testing",
+            "Test safety valves",
+            "inspection",
+            "pending",
+            4.0,
+            None,
+            "Safety Valve Calibration",
+            "Morning Shift",
+            "inspection",
+            0,
+        ),
         (
             "Boiler Tube Inspection",
             "Internal tube inspection",
@@ -903,16 +913,70 @@ async def seed_tasks(session, maintenance_schedules, shifts):
             "/docs/tube-inspect.pdf",
             "Boiler Annual Inspection",
             "Afternoon Shift",
-            "Engineering Team A",
             "inspection",
             1,
         ),
-        ("Pump Seal Replacement", "Replace pump seals", "repair", "in_progress", 6.0, None, "Feed Water Pump Overhaul", "Morning Shift", "Mechanical Team", "repair", 0),
-        ("Combustion Tuning", "Optimize combustion", "calibration", "pending", 3.0, None, "Combustion Efficiency Test", "Afternoon Shift", "Operations Team", "calibration", 0),
-        ("Generator Winding Test", "Winding insulation test", "inspection", "pending", 6.0, None, "Generator Winding Inspection", "Morning Shift", "Electrical Team", "inspection", 0),
-        ("Turbine Alignment", "Turbine-generator alignment", "calibration", "pending", 12.0, None, "Turbine Bearing Replacement", "Morning Shift", "Mechanical Team", "verification", 1),
+        (
+            "Pump Seal Replacement",
+            "Replace pump seals",
+            "repair",
+            "in_progress",
+            6.0,
+            None,
+            "Feed Water Pump Overhaul",
+            "Morning Shift",
+            "repair",
+            0,
+        ),
+        (
+            "Combustion Tuning",
+            "Optimize combustion",
+            "calibration",
+            "pending",
+            3.0,
+            None,
+            "Combustion Efficiency Test",
+            "Afternoon Shift",
+            "calibration",
+            0,
+        ),
+        (
+            "Generator Winding Test",
+            "Winding insulation test",
+            "inspection",
+            "pending",
+            6.0,
+            None,
+            "Generator Winding Inspection",
+            "Morning Shift",
+            "inspection",
+            0,
+        ),
+        (
+            "Turbine Alignment",
+            "Turbine-generator alignment",
+            "calibration",
+            "pending",
+            12.0,
+            None,
+            "Turbine Bearing Replacement",
+            "Morning Shift",
+            "verification",
+            1,
+        ),
     ]
-    for name, desc, ttype, st, hrs, doc, schedule_title, shift_name, assigned_to, action_type, seq_order in task_specs:
+    for (
+        name,
+        desc,
+        ttype,
+        st,
+        hrs,
+        doc,
+        schedule_title,
+        shift_name,
+        action_type,
+        seq_order,
+    ) in task_specs:
         ms = maintenance_schedules.get(schedule_title)
         shift = shifts.get(shift_name)
         t = Task(
@@ -924,7 +988,6 @@ async def seed_tasks(session, maintenance_schedules, shifts):
             doc_link=doc,
             maintenance_schedule_id=ms.id if ms else None,
             shift_id=shift.id if shift else None,
-            assigned_to=assigned_to,
             action_type=action_type,
             sequence_order=seq_order,
         )
@@ -933,8 +996,6 @@ async def seed_tasks(session, maintenance_schedules, shifts):
     await session.commit()
     logger.info(f"Created {len(tasks)} tasks.")
     return tasks
-
-
 
 
 async def seed_causes(session):
@@ -1011,7 +1072,16 @@ async def seed_down_events(session, assets, causes, faults, maintenance_schedule
             "T-BV-001",
             "Turbine Bearing Replacement",
         ),
-        ("Pump seal failure", "Feed Water Pump", 90, "medium", "resolved", ["Seal Degradation"], "B-TL-001", None),
+        (
+            "Pump seal failure",
+            "Feed Water Pump",
+            90,
+            "medium",
+            "resolved",
+            ["Seal Degradation"],
+            "B-TL-001",
+            None,
+        ),
         (
             "Generator overheat",
             "Generator",
@@ -1022,7 +1092,16 @@ async def seed_down_events(session, assets, causes, faults, maintenance_schedule
             "B-HP-001",
             None,
         ),
-        ("Cooling system leak", "Cooling System", 60, "low", "resolved", ["Corrosion"], "B-TL-001", None),
+        (
+            "Cooling system leak",
+            "Cooling System",
+            60,
+            "low",
+            "resolved",
+            ["Corrosion"],
+            "B-TL-001",
+            None,
+        ),
         # Unresolved down events -- still ongoing
         (
             "Boiler low water level trip",
@@ -1071,7 +1150,11 @@ async def seed_down_events(session, assets, causes, faults, maintenance_schedule
         fault = faults[fault_code]
         fault.name = desc
         fault_id = fault.id
-        ms_id = maintenance_schedules.get(schedule_title).id if schedule_title and maintenance_schedules.get(schedule_title) else None
+        ms_id = (
+            maintenance_schedules.get(schedule_title).id
+            if schedule_title and maintenance_schedules.get(schedule_title)
+            else None
+        )
         e = DownEvent(
             asset_id=assets[aname].id,
             fault_id=fault_id,
@@ -1448,7 +1531,10 @@ async def seed_associations(
         ("Senior Boiler Operator", ["Boiler Operation", "Thermal Imaging", "Safety Procedures"]),
         ("Junior Turbine Engineer", ["Safety Procedures", "Turbine Operation"]),
         ("Turbine Engineer", ["Turbine Operation", "Vibration Analysis"]),
-        ("Senior Turbine Engineer", ["Vibration Analysis", "Turbine Operation", "Thermal Imaging"]),
+        (
+            "Senior Turbine Engineer",
+            ["Vibration Analysis", "Turbine Operation", "Thermal Imaging"],
+        ),
         ("Shift Supervisor I", ["Safety Procedures"]),
         ("Shift Supervisor II", ["Safety Procedures", "Boiler Operation"]),
         ("Safety Officer I", ["Safety Procedures"]),
@@ -1495,7 +1581,9 @@ async def run(clean: bool = False) -> None:
         materials = await seed_materials(session)
         maintenance_schedules = await seed_maintenance_schedules(session, assets)
         tasks = await seed_tasks(session, maintenance_schedules, shifts)
-        down_events = await seed_down_events(session, assets, causes, faults, maintenance_schedules)
+        down_events = await seed_down_events(
+            session, assets, causes, faults, maintenance_schedules
+        )
         orders = await seed_orders(session, assets)
         await seed_sensor_data(session, sensors)
         await seed_associations(

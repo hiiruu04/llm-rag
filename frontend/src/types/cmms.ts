@@ -124,7 +124,7 @@ export interface Task {
   doc_link: string | null;
   maintenance_schedule_id: string;
   shift_id: string | null;
-  assigned_to: string | null;
+  worker_ids: string[] | null;
   action_type: string;
   sequence_order: number;
   created_at: string | null;
@@ -140,7 +140,7 @@ export interface TaskCreate {
   doc_link?: string;
   maintenance_schedule_id: string;
   shift_id?: string;
-  assigned_to?: string;
+  worker_ids?: string[];
   action_type?: string;
   sequence_order?: number;
 }
@@ -154,7 +154,7 @@ export interface TaskUpdate {
   doc_link?: string;
   maintenance_schedule_id?: string;
   shift_id?: string;
-  assigned_to?: string;
+  worker_ids?: string[];
   action_type?: string;
   sequence_order?: number;
 }

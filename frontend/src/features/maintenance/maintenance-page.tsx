@@ -23,7 +23,7 @@ export default function MaintenancePage() {
 
   const { data, isLoading, isError, error, refetch } = useMaintenanceSchedules({
     page,
-    per_page: 20,
+    per_page: 10,
     status: statusFilter || undefined,
     maintenance_type: typeFilter || undefined,
   });
@@ -78,7 +78,7 @@ export default function MaintenancePage() {
       <DataTable<MaintenanceSchedule>
         data={data?.data ?? []}
         keyExtractor={(s) => s.id}
-        onRowClick={(s) => navigate(`/maintenance/${s.id}/edit`)}
+        onRowClick={(s) => navigate(`/maintenance/${s.id}`)}
         columns={[
           { header: "Title", accessor: "title" },
           { header: "Type", accessor: (s) => <StatusBadge value={s.maintenance_type} /> },

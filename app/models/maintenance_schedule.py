@@ -28,12 +28,14 @@ class MaintenanceSchedule(Base):
     )
 
     asset = relationship("Asset", back_populates="maintenance_schedules")
-    tasks = relationship("Task", back_populates="maintenance_schedule", cascade="all, delete-orphan")
+    tasks = relationship(
+        "Task", back_populates="maintenance_schedule", cascade="all, delete-orphan"
+    )
     down_events = relationship("DownEvent", back_populates="maintenance_schedule")
     order = relationship("Order", back_populates="maintenance_schedule", uselist=False)
 
-    def to_dict(self) -> dict:
-        return {
+    def to_dict(self, include_relations: bool = False) -> dict:
+        data = {
             "id": str(self.id),
             "asset_id": str(self.asset_id),
             "title": self.title,
@@ -49,3 +51,9 @@ class MaintenanceSchedule(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+        if include_relations:
+            data["asset"] = self.asset.to_dict() if self.asset else None
+            data["down_events"] = [de.to_dict() for de in (self.down_events or [])]
+            data["order"] = self.order.to_dict() if self.order else None
+            data["tasks"] = [t.to_dict() for t in (self.tasks or [])]
+        return data

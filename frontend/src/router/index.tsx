@@ -15,6 +15,7 @@ const FaultCreatePage = lazy(() => import("@/features/faults/fault-create-page")
 const FaultEditPage = lazy(() => import("@/features/faults/fault-edit-page"));
 const MaintenancePage = lazy(() => import("@/features/maintenance/maintenance-page"));
 const ScheduleCreatePage = lazy(() => import("@/features/maintenance/schedule-create-page"));
+const ScheduleDetailPage = lazy(() => import("@/features/maintenance/schedule-detail-page"));
 const ScheduleEditPage = lazy(() => import("@/features/maintenance/schedule-edit-page"));
 const DocumentsPage = lazy(() => import("@/features/documents/documents-page"));
 const QueryPage = lazy(() => import("@/features/query/query-page"));
@@ -101,6 +102,7 @@ export const router = (
     <Route path="/assets/:assetId/faults/new" element={<PageSuspense><FaultCreatePage /></PageSuspense>} />
     <Route path="/faults/:id/edit" element={<PageSuspense><FaultEditPage /></PageSuspense>} />
     <Route path="/maintenance" element={<PageSuspense><MaintenancePage /></PageSuspense>} />
+    <Route path="/maintenance/:id" element={<PageSuspense><ScheduleDetailPage /></PageSuspense>} />
     <Route path="/assets/:assetId/maintenance/new" element={<PageSuspense><ScheduleCreatePage /></PageSuspense>} />
     <Route path="/maintenance/:id/edit" element={<PageSuspense><ScheduleEditPage /></PageSuspense>} />
     <Route path="/documents" element={<PageSuspense><DocumentsPage /></PageSuspense>} />

@@ -24,7 +24,7 @@ export default function DownEventsPage() {
 
   const { data, isLoading, isError, error, refetch } = useDownEvents({
     page,
-    per_page: 20,
+    per_page: 10,
     severity: severityFilter || undefined,
     status: statusFilter || undefined,
   });

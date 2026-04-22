@@ -21,7 +21,7 @@ export default function LocationsPage() {
 
   const { data, isLoading, isError, error, refetch } = useLocations({
     page,
-    per_page: 20,
+    per_page: 10,
   });
 
   const deleteMutation = useDeleteLocation();

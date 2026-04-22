@@ -21,7 +21,7 @@ export default function ShiftsPage() {
 
   const { data, isLoading, isError, error, refetch } = useShifts({
     page,
-    per_page: 20,
+    per_page: 10,
   });
 
   const deleteMutation = useDeleteShift();

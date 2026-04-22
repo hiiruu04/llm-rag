@@ -24,7 +24,7 @@ export default function TasksPage() {
 
   const { data, isLoading, isError, error, refetch } = useTasks({
     page,
-    per_page: 20,
+    per_page: 10,
     status: statusFilter || undefined,
     task_type: taskTypeFilter || undefined,
   });

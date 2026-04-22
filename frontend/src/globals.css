@@ -120,4 +120,31 @@
   body {
     @apply bg-background text-foreground;
   }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.7 0.01 286) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.7 0.01 286);
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.55 0.02 286);
+  }
+  .dark * {
+    scrollbar-color: oklch(0.45 0.01 286) transparent;
+  }
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.45 0.01 286);
+  }
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.55 0.01 286);
+  }
 }

@@ -195,7 +195,9 @@ class GraphSyncService:
             counts["task_material_edges"] = await self._sync_task_material_edges(driver)
             counts["cause_role_edges"] = await self._sync_cause_role_edges(driver)
             counts["role_task_edges"] = await self._sync_role_task_edges(driver)
-            counts["maintenance_competence_edges"] = await self._sync_maintenance_competence_edges(driver)
+            counts["maintenance_competence_edges"] = await self._sync_maintenance_competence_edges(
+                driver
+            )
             counts["asset_system_edges"] = await self._sync_asset_system_edges(driver)
             counts["system_aggregate_edges"] = await self._sync_system_aggregate_edges(driver)
             counts["down_event_cause_edges"] = await self._sync_down_event_cause_edges(driver)
@@ -206,7 +208,9 @@ class GraphSyncService:
             counts["task_schedule_edges"] = await self._sync_task_schedule_edges(driver)
             counts["task_shift_edges"] = await self._sync_task_shift_edges(driver)
             counts["worker_level_edges"] = await self._sync_worker_level_edges(driver)
-            counts["down_event_maintenance_edges"] = await self._sync_down_event_maintenance_edges(driver)
+            counts["down_event_maintenance_edges"] = await self._sync_down_event_maintenance_edges(
+                driver
+            )
             counts["level_competence_edges"] = await self._sync_level_competence_edges(driver)
             counts["order_maintenance_edges"] = await self._sync_order_maintenance_edges(driver)
             counts["order_material_edges"] = await self._sync_order_material_edges(driver)
@@ -271,12 +275,20 @@ class GraphSyncService:
                     "MATCH (s:SyncMetadata) RETURN s.last_incremental_sync AS lis"
                 )
                 record = await result.single()
-                last_sync = record["lis"] if record and record["lis"] else None
+                raw_lis = record["lis"] if record and record["lis"] else None
 
-            if not last_sync:
+            if not raw_lis:
                 logger.info("No previous sync found, falling back to full sync")
                 await self._release_sync_lock()
                 return await self.full_sync()
+
+            # Convert neo4j time types to Python datetime
+            if hasattr(raw_lis, "to_native"):
+                last_sync = raw_lis.to_native()
+            elif isinstance(raw_lis, datetime):
+                last_sync = raw_lis
+            else:
+                last_sync = datetime.fromisoformat(str(raw_lis)).replace(tzinfo=timezone.utc)
 
             total_records = 0
             counts = {}
@@ -307,7 +319,6 @@ class GraphSyncService:
             counts["maintenance_edges"] = await self._sync_maintenance_edges(
                 driver, since=last_sync
             )
-            counts["cause_effect_edges"] = await self._sync_cause_effect_edges(driver)
             counts["assigned_to_edges"] = await self._sync_assigned_to_edges(driver)
             counts["worker_competence_edges"] = await self._sync_worker_competence_edges(driver)
             counts["worker_shift_edges"] = await self._sync_worker_shift_edges(driver)
@@ -315,7 +326,9 @@ class GraphSyncService:
             counts["task_material_edges"] = await self._sync_task_material_edges(driver)
             counts["cause_role_edges"] = await self._sync_cause_role_edges(driver)
             counts["role_task_edges"] = await self._sync_role_task_edges(driver)
-            counts["maintenance_competence_edges"] = await self._sync_maintenance_competence_edges(driver)
+            counts["maintenance_competence_edges"] = await self._sync_maintenance_competence_edges(
+                driver
+            )
             counts["asset_system_edges"] = await self._sync_asset_system_edges(driver)
             counts["system_aggregate_edges"] = await self._sync_system_aggregate_edges(driver)
             counts["down_event_cause_edges"] = await self._sync_down_event_cause_edges(driver)
@@ -326,7 +339,9 @@ class GraphSyncService:
             counts["task_schedule_edges"] = await self._sync_task_schedule_edges(driver)
             counts["task_shift_edges"] = await self._sync_task_shift_edges(driver)
             counts["worker_level_edges"] = await self._sync_worker_level_edges(driver)
-            counts["down_event_maintenance_edges"] = await self._sync_down_event_maintenance_edges(driver)
+            counts["down_event_maintenance_edges"] = await self._sync_down_event_maintenance_edges(
+                driver
+            )
             counts["level_competence_edges"] = await self._sync_level_competence_edges(driver)
             counts["order_maintenance_edges"] = await self._sync_order_maintenance_edges(driver)
             counts["order_material_edges"] = await self._sync_order_material_edges(driver)
@@ -655,7 +670,6 @@ class GraphSyncService:
             "doc_link": "doc_link",
             "maintenance_schedule_id": "maintenance_schedule_id",
             "shift_id": "shift_id",
-            "assigned_to": "assigned_to",
             "action_type": "action_type",
             "sequence_order": "sequence_order",
             "created_at": "created_at",
@@ -669,7 +683,7 @@ class GraphSyncService:
             "t.estimated_duration_hours = row.estimated_duration_hours, "
             "t.doc_link = row.doc_link, "
             "t.maintenance_schedule_id = row.maintenance_schedule_id, "
-            "t.shift_id = row.shift_id, t.assigned_to = row.assigned_to, "
+            "t.shift_id = row.shift_id, "
             "t.action_type = row.action_type, t.sequence_order = row.sequence_order, "
             "t.created_at = row.created_at, "
             "t.updated_at = row.updated_at"
@@ -1126,7 +1140,9 @@ class GraphSyncService:
             "MATCH (m:MaintenanceSchedule {pg_id: row.schedule_id}) "
             "MERGE (t)-[:belongs_to]->(m)"
         )
-        batch = [{"task_id": str(r.id), "schedule_id": str(r.maintenance_schedule_id)} for r in rows]
+        batch = [
+            {"task_id": str(r.id), "schedule_id": str(r.maintenance_schedule_id)} for r in rows
+        ]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_task_shift_edges(self, driver, since=None) -> int:
@@ -1180,7 +1196,10 @@ class GraphSyncService:
             "MATCH (m:MaintenanceSchedule {pg_id: row.maintenance_schedule_id}) "
             "MERGE (d)-[:resolved_by]->(m)"
         )
-        batch = [{"down_event_id": str(r.id), "maintenance_schedule_id": str(r.maintenance_schedule_id)} for r in rows]
+        batch = [
+            {"down_event_id": str(r.id), "maintenance_schedule_id": str(r.maintenance_schedule_id)}
+            for r in rows
+        ]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_level_competence_edges(self, driver, since=None) -> int:
@@ -1234,10 +1253,7 @@ class GraphSyncService:
             "MATCH (m:Material {pg_id: row.material_id}) "
             "MERGE (o)-[:uses_material]->(m)"
         )
-        batch = [
-            {"order_id": str(r.order_id), "material_id": str(r.id)}
-            for r in rows
-        ]
+        batch = [{"order_id": str(r.order_id), "material_id": str(r.id)} for r in rows]
         return await self._write_raw_batches(driver, batch, cypher)
 
     async def _sync_deletions(self, driver) -> int:

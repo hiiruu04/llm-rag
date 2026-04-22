@@ -201,7 +201,7 @@ async def list_documents(
         end_idx = start_idx + per_page
         paginated_documents = all_documents[start_idx:end_idx]
 
-        data = DocumentListData(documents=paginated_documents)
+        data = [DocumentInfo(**d) for d in paginated_documents]
 
         pagination = Pagination(
             page=page,
@@ -213,7 +213,7 @@ async def list_documents(
         return SuccessResponse.create(
             data=data,
             status_code=200,
-            details=f"Retrieved {len(paginated_documents)} documents",
+            details=f"Retrieved {len(data)} documents",
             pagination=pagination,
         )
 

@@ -167,10 +167,6 @@ def downgrade() -> None:
     )
     op.add_column(
         "maintenance_schedules",
-        sa.Column("assigned_to", sa.String(255), nullable=True),
-    )
-    op.add_column(
-        "maintenance_schedules",
         sa.Column(
             "action_type",
             sa.String(100),
@@ -206,7 +202,6 @@ def downgrade() -> None:
     # ── Remove new columns from tasks ──
     op.drop_column("tasks", "sequence_order")
     op.drop_column("tasks", "action_type")
-    op.drop_column("tasks", "assigned_to")
     op.drop_column("tasks", "shift_id")
     op.drop_column("tasks", "maintenance_schedule_id")
 

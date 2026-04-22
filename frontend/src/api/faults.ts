@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, paginatedGet } from "@/lib/api-client";
 import type { Fault, FaultCreate, FaultUpdate, FaultLinkCreate } from "@/types/fault";
 
-export function useFaults(params?: { page?: number; per_page?: number }) {
+export function useFaults(params?: { page?: number; per_page?: number; severity?: string; status?: string }) {
   return useQuery({
     queryKey: ["faults", params],
     queryFn: () => paginatedGet<Fault>("/api/v1/faults", params),

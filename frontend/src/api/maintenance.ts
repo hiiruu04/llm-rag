@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, paginatedGet } from "@/lib/api-client";
-import type { MaintenanceSchedule, ScheduleCreate, ScheduleUpdate } from "@/types/maintenance";
+import type { MaintenanceSchedule, MaintenanceScheduleDetail, ScheduleCreate, ScheduleUpdate } from "@/types/maintenance";
 
 export function useMaintenanceSchedules(params?: {
   page?: number;
@@ -29,6 +29,17 @@ export function useSchedule(id: string) {
     queryKey: ["maintenance", id],
     queryFn: async () => {
       const res = await apiClient.get<MaintenanceSchedule>(`/api/v1/maintenance-schedules/${id}`);
+      return res.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useScheduleDetail(id: string) {
+  return useQuery({
+    queryKey: ["maintenance", id, "detail"],
+    queryFn: async () => {
+      const res = await apiClient.get<MaintenanceScheduleDetail>(`/api/v1/maintenance-schedules/${id}/detail`);
       return res.data;
     },
     enabled: !!id,

@@ -25,7 +25,7 @@ export default function OrdersPage() {
 
   const { data, isLoading, isError, error, refetch } = useOrders({
     page,
-    per_page: 20,
+    per_page: 10,
     status: statusFilter || undefined,
     order_type: orderTypeFilter || undefined,
     priority: priorityFilter || undefined,

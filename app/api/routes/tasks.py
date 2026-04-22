@@ -16,6 +16,8 @@ from app.models.schemas import (
     TaskUpdate,
 )
 from app.services import task_service
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
 

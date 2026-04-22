@@ -22,7 +22,7 @@ export default function MaterialsPage() {
 
   const { data, isLoading, isError, error, refetch } = useMaterials({
     page,
-    per_page: 20,
+    per_page: 10,
     part_number: partNumberFilter || undefined,
   });
 

@@ -13,6 +13,55 @@ from app.services import asset_service, fault_service
 router = APIRouter(prefix="/api/v1", tags=["faults"])
 
 
+@router.get("/faults")
+async def list_all_faults(
+    asset_id: UUID | None = Query(None),
+    severity: str | None = Query(None),
+    status: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    logger.info("Listing all faults")
+
+    try:
+        faults, total = await fault_service.list_all_faults(
+            db,
+            asset_id=asset_id,
+            severity=severity,
+            status=status,
+            page=page,
+            per_page=per_page,
+        )
+        total_pages = math.ceil(total / per_page) if total > 0 else 0
+        data = [FaultResponse(**f.to_dict()) for f in faults]
+
+        return SuccessResponse.create(
+            data=data,
+            status_code=200,
+            details=f"Retrieved {len(data)} faults",
+            pagination=Pagination(
+                page=page,
+                per_page=per_page,
+                total=total,
+                total_pages=total_pages,
+            ),
+        )
+    except Exception as e:
+        logger.error(f"Error listing faults: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "data": None,
+                "meta": {
+                    "status_code": 500,
+                    "details": "Internal server error",
+                    "errors": [str(e)],
+                },
+            },
+        )
+
+
 @router.post("/assets/{asset_id}/faults", status_code=201)
 async def create_fault(
     asset_id: UUID,

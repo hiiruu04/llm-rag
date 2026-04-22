@@ -21,7 +21,7 @@ export default function SystemsPage() {
 
   const { data, isLoading, isError, error, refetch } = useSystems({
     page,
-    per_page: 20,
+    per_page: 10,
   });
 
   const deleteMutation = useDeleteSystem();

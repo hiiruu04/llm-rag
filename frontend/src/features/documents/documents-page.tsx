@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Trash2, FileText } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable } from "@/components/common/data-table";
+import { PaginationControls } from "@/components/common/pagination";
 import { LoadingState } from "@/components/common/loading-state";
 import { ErrorState } from "@/components/common/error-state";
 import { EmptyState } from "@/components/common/empty-state";
@@ -11,15 +12,16 @@ import { useDocuments, useUploadDocument, useDeleteDocument } from "@/api/docume
 import type { DocumentInfo } from "@/types/document";
 
 export default function DocumentsPage() {
+  const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<DocumentInfo | null>(null);
-  const { data, isLoading, isError, error, refetch } = useDocuments({ per_page: 50 });
+  const { data, isLoading, isError, error, refetch } = useDocuments({ page, per_page: 10 });
   const uploadMutation = useUploadDocument();
   const deleteMutation = useDeleteDocument();
 
   if (isLoading) return <><PageHeader title="Documents" /><LoadingState /></>;
   if (isError) return <><PageHeader title="Documents" /><ErrorState message={error?.message} onRetry={() => refetch()} /></>;
 
-  const documents = data?.documents ?? [];
+  const documents = data?.data ?? [];
 
   return (
     <>
@@ -65,6 +67,7 @@ export default function DocumentsPage() {
       ) : (
         <EmptyState title="No documents" description="Upload your first document to get started." />
       )}
+      <PaginationControls pagination={data?.pagination ?? null} onPageChange={setPage} />
 
       <ConfirmDialog
         open={!!deleteTarget}
